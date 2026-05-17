@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		CA4D30022FAD69AC00010C48 /* PomoTimer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PomoTimer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA4D30022FAD69AC00010C48 /* PomoLedger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PomoLedger.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CA4D30342FAD6A5A00010C48 /* Exceptions for "PomoTimer" folder in "PomoTimer" target */ = {
+		CA4D30342FAD6A5A00010C48 /* Exceptions for "PomoTimer" folder in "PomoLedger" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -19,7 +19,7 @@
 			platformFiltersByRelativePath = {
 				Platform/ScreenBlurManager.swift = (macos, );
 			};
-			target = CA4D30012FAD69AC00010C48 /* PomoTimer */;
+			target = CA4D30012FAD69AC00010C48 /* PomoLedger */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -27,7 +27,7 @@
 		CA4D30042FAD69AC00010C48 /* PomoTimer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				CA4D30342FAD6A5A00010C48 /* Exceptions for "PomoTimer" folder in "PomoTimer" target */,
+				CA4D30342FAD6A5A00010C48 /* Exceptions for "PomoTimer" folder in "PomoLedger" target */,
 			);
 			path = PomoTimer;
 			sourceTree = "<group>";
@@ -56,7 +56,7 @@
 		CA4D30032FAD69AC00010C48 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CA4D30022FAD69AC00010C48 /* PomoTimer.app */,
+				CA4D30022FAD69AC00010C48 /* PomoLedger.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,9 +64,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		CA4D30012FAD69AC00010C48 /* PomoTimer */ = {
+		CA4D30012FAD69AC00010C48 /* PomoLedger */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CA4D300D2FAD69AD00010C48 /* Build configuration list for PBXNativeTarget "PomoTimer" */;
+			buildConfigurationList = CA4D300D2FAD69AD00010C48 /* Build configuration list for PBXNativeTarget "PomoLedger" */;
 			buildPhases = (
 				CA4D2FFE2FAD69AC00010C48 /* Sources */,
 				CA4D2FFF2FAD69AC00010C48 /* Frameworks */,
@@ -79,11 +79,11 @@
 			fileSystemSynchronizedGroups = (
 				CA4D30042FAD69AC00010C48 /* PomoTimer */,
 			);
-			name = PomoTimer;
+			name = PomoLedger;
 			packageProductDependencies = (
 			);
 			productName = PomoTimer;
-			productReference = CA4D30022FAD69AC00010C48 /* PomoTimer.app */;
+			productReference = CA4D30022FAD69AC00010C48 /* PomoLedger.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -94,14 +94,14 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					CA4D30012FAD69AC00010C48 = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
 				};
 			};
-			buildConfigurationList = CA4D2FFD2FAD69AC00010C48 /* Build configuration list for PBXProject "PomoTimer" */;
+			buildConfigurationList = CA4D2FFD2FAD69AC00010C48 /* Build configuration list for PBXProject "PomoLedger" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -115,7 +115,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				CA4D30012FAD69AC00010C48 /* PomoTimer */,
+				CA4D30012FAD69AC00010C48 /* PomoLedger */,
 			);
 		};
 /* End PBXProject section */
@@ -175,6 +175,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = C7ZFPH2CB5;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -198,6 +199,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -237,6 +239,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = C7ZFPH2CB5;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -253,6 +256,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -265,6 +269,7 @@
 				CODE_SIGN_ENTITLEMENTS = PomoTimer/PomoTimer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = C7ZFPH2CB5;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -325,6 +330,7 @@
 				CODE_SIGN_ENTITLEMENTS = PomoTimer/PomoTimer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = C7ZFPH2CB5;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -380,7 +386,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CA4D2FFD2FAD69AC00010C48 /* Build configuration list for PBXProject "PomoTimer" */ = {
+		CA4D2FFD2FAD69AC00010C48 /* Build configuration list for PBXProject "PomoLedger" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CA4D300B2FAD69AD00010C48 /* Debug */,
@@ -389,7 +395,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CA4D300D2FAD69AD00010C48 /* Build configuration list for PBXNativeTarget "PomoTimer" */ = {
+		CA4D300D2FAD69AD00010C48 /* Build configuration list for PBXNativeTarget "PomoLedger" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CA4D300E2FAD69AD00010C48 /* Debug */,
