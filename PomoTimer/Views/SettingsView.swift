@@ -1,16 +1,25 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import EventKit
 
 struct SettingsView: View {
 
     @EnvironmentObject var store: SessionStore
+    @EnvironmentObject var calendarService: CalendarService
 
     @AppStorage(SessionStore.customJSONDirectoryKey) private var customJSONPath: String = ""
     @AppStorage(SessionStore.customICSDirectoryKey) private var customICSPath: String = ""
+    @AppStorage(CalendarService.selectedCalendarIdentifierKey) private var selectedCalendarID: String = ""
+    @AppStorage(SessionStore.autoRolloverModeKey) private var rolloverModeRaw: String = SessionStore.RolloverMode.off.rawValue
+    @AppStorage(SessionStore.weeklyRolloverWeekdayKey) private var rolloverWeekday: Int = SessionStore.defaultWeekStartWeekday
 
     private enum PickerTarget { case json, ics }
     @State private var activePickerTarget: PickerTarget?
     @State private var showPicker = false
+
+    @State private var availableCalendars: [EKCalendar] = []
+    @State private var showArchiveConfirm = false
+    @State private var archiveResultMessage: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -58,6 +67,10 @@ struct SettingsView: View {
                         }
                     )
 
+                    calendarSection
+
+                    archiveSection
+
                     Spacer()
                 }
                 .padding(.horizontal, 24)
@@ -66,6 +79,25 @@ struct SettingsView: View {
         }
         .frame(minWidth: 400, minHeight: 340)
         .background(Color.pomoBackground)
+        .task { availableCalendars = await calendarService.loadWritableCalendars() }
+        .confirmationDialog(
+            "Archive current recaps and start a new file?",
+            isPresented: $showArchiveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Archive & Start New", role: .destructive) {
+                Task {
+                    if let url = await store.archiveAndStartNew() {
+                        archiveResultMessage = "Archived as \u{201C}\(url.lastPathComponent)\u{201D}"
+                    } else {
+                        archiveResultMessage = "Nothing to archive yet."
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The current recaps.json is renamed for the dates it covers, and a fresh empty file is started.")
+        }
         .fileImporter(
             isPresented: $showPicker,
             allowedContentTypes: [.folder],
@@ -158,6 +190,111 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Calendar selection
+
+    private var calendarSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Calendar for Events", systemImage: "calendar.badge.plus")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                if availableCalendars.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar.badge.exclamationmark")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18)
+                        Text("No calendars available. Grant Calendar access to choose one.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        Spacer()
+                    }
+                } else {
+                    Picker("Save events to", selection: $selectedCalendarID) {
+                        Text("Default Calendar").tag("")
+                        ForEach(availableCalendars, id: \.calendarIdentifier) { calendar in
+                            Text(calendar.title).tag(calendar.calendarIdentifier)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(14)
+            .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    // MARK: - Archive recaps
+
+    private var archiveSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Reports & Archiving", systemImage: "archivebox.fill")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Archive the current recaps and begin a fresh file, ready for the next reporting period.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Button("Archive & Start New File\u{2026}") {
+                    showArchiveConfirm = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.sessions.isEmpty)
+
+                if let archiveResultMessage {
+                    Text(archiveResultMessage)
+                        .font(.caption)
+                        .foregroundStyle(Color.pomoIndigo)
+                }
+
+                Divider()
+                    .padding(.vertical, 4)
+
+                Picker("Automatic rollover", selection: $rolloverModeRaw) {
+                    ForEach(SessionStore.RolloverMode.allCases) { mode in
+                        Text(mode.label).tag(mode.rawValue)
+                    }
+                }
+
+                if rolloverModeRaw == SessionStore.RolloverMode.weekly.rawValue {
+                    Picker("Week starts on", selection: $rolloverWeekday) {
+                        ForEach(weekdayOptions, id: \.weekday) { option in
+                            Text(option.name).tag(option.weekday)
+                        }
+                    }
+                }
+
+                Text(rolloverDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    /// Weekday choices (1 = Sunday … 7 = Saturday) using localized names.
+    private var weekdayOptions: [(weekday: Int, name: String)] {
+        let symbols = Calendar.current.weekdaySymbols   // index 0 = Sunday
+        return symbols.enumerated().map { (weekday: $0.offset + 1, name: $0.element) }
+    }
+
+    private var rolloverDescription: String {
+        switch SessionStore.RolloverMode(rawValue: rolloverModeRaw) ?? .off {
+        case .off:
+            return "Recaps keep accumulating until you archive manually."
+        case .weekly:
+            let day = weekdayOptions.first { $0.weekday == rolloverWeekday }?.name ?? "Monday"
+            return "Recaps from the previous week are archived automatically when a new week begins on \(day)."
+        case .monthly:
+            return "Recaps from the previous month are archived automatically when a new month begins."
+        }
+    }
+
     // MARK: - Display paths
 
     private var jsonDisplayPath: String {
@@ -183,4 +320,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environmentObject(SessionStore())
+        .environmentObject(CalendarService())
 }

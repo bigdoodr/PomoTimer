@@ -12,6 +12,10 @@ final class CalendarService: ObservableObject {
     private let store = EKEventStore()
     @Published private(set) var authorizationStatus: EKAuthorizationStatus = .notDetermined
 
+    /// Identifier of the calendar the user chose in Settings for new events.
+    /// When empty, events fall back to Calendar.app's default calendar.
+    static let selectedCalendarIdentifierKey = "selectedCalendarIdentifier"
+
     init() {
         refreshStatus()
     }
@@ -50,6 +54,27 @@ final class CalendarService: ObservableObject {
         }
     }
 
+    // MARK: - Calendar selection
+
+    /// Writable event calendars, sorted by title. Requests access first if needed.
+    /// Returns an empty array if access is denied.
+    func loadWritableCalendars() async -> [EKCalendar] {
+        if !isAuthorized {
+            let granted = await requestAccess()
+            guard granted else { return [] }
+        }
+        return store.calendars(for: .event)
+            .filter { $0.allowsContentModifications }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    /// The calendar chosen in Settings, or nil if none is set / no longer exists.
+    private var userSelectedCalendar: EKCalendar? {
+        let id = UserDefaults.standard.string(forKey: Self.selectedCalendarIdentifierKey) ?? ""
+        guard !id.isEmpty else { return nil }
+        return store.calendar(withIdentifier: id)
+    }
+
     // MARK: - EventKit: create calendar event
 
     /// Creates an EKEvent for the session and returns the event identifier.
@@ -59,7 +84,9 @@ final class CalendarService: ObservableObject {
             guard granted else { return nil }
         }
 
-        guard let calendar = store.defaultCalendarForNewEvents else { return nil }
+        // Prefer the calendar the user picked in Settings; fall back to the
+        // system default so events are never silently dropped.
+        guard let calendar = userSelectedCalendar ?? store.defaultCalendarForNewEvents else { return nil }
 
         let event = EKEvent(eventStore: store)
         event.title = "Pomodoro Focus Session \(session.sessionNumber)"

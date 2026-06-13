@@ -9,6 +9,19 @@ import Combine
 @MainActor
 final class SessionStore: ObservableObject {
 
+    /// How often the recaps file rolls over into a dated archive automatically.
+    enum RolloverMode: String, CaseIterable, Identifiable {
+        case off, weekly, monthly
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .off:     return "Off"
+            case .weekly:  return "Weekly"
+            case .monthly: return "Monthly"
+            }
+        }
+    }
+
     // MARK: - Published
     @Published private(set) var sessions: [PomodoroSession] = []
     @Published private(set) var hasConfiguredStorage: Bool = false
@@ -19,6 +32,20 @@ final class SessionStore: ObservableObject {
     static let customICSDirectoryKey       = "customICSDirectoryPath"
     static let customJSONBookmarkKey       = "customJSONDirectoryBookmark"
     static let customICSBookmarkKey        = "customICSDirectoryBookmark"
+
+    // Automatic rollover settings
+    static let autoRolloverModeKey         = "autoRolloverMode"        // RolloverMode.rawValue
+    static let weeklyRolloverWeekdayKey    = "weeklyRolloverWeekday"   // 1 = Sun … 7 = Sat
+    static let defaultWeekStartWeekday     = 2                          // Monday
+
+    /// Parses a session `date` string ("YYYY-MM-DD").
+    private static let dateParser: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
 
     // MARK: - Private
 
@@ -51,9 +78,15 @@ final class SessionStore: ObservableObject {
         } catch {
             print("[SessionStore] Load failed: \(error)")
         }
+
+        // A new period may have begun while the app was closed.
+        await performAutoRolloverIfNeeded()
     }
 
     func append(_ session: PomodoroSession) async {
+        // Roll the previous period into an archive before the new session
+        // starts populating a fresh file.
+        await performAutoRolloverIfNeeded()
         sessions.append(session)
         await persist()
     }
@@ -61,6 +94,82 @@ final class SessionStore: ObservableObject {
     func deleteSession(id: UUID) async {
         sessions.removeAll { $0.id == id }
         await persist()
+    }
+
+    // MARK: - Archiving
+
+    /// Archives the current `recaps.json`, renaming it for the date range it
+    /// covers (e.g. `recaps.2026-05-28-thru-2026-06-02.json`), then starts a
+    /// fresh empty recaps file. Returns the archive URL, or nil if there is
+    /// nothing to archive.
+    @discardableResult
+    func archiveAndStartNew() async -> URL? {
+        guard let url = recapsURL, !sessions.isEmpty else { return nil }
+
+        let dates = sessions.map { $0.date }.sorted()
+        let first = dates.first ?? dates.last ?? ""
+        let last = dates.last ?? first
+        let archiveName = "recaps.\(first)-thru-\(last).json"
+        let archiveURL = url.deletingLastPathComponent().appendingPathComponent(archiveName)
+
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: url.path) {
+                if fm.fileExists(atPath: archiveURL.path) {
+                    try fm.removeItem(at: archiveURL)
+                }
+                try fm.moveItem(at: url, to: archiveURL)
+            }
+            // Start fresh — persist() recreates recaps.json with an empty array.
+            sessions = []
+            await persist()
+            return archiveURL
+        } catch {
+            print("[SessionStore] Archive failed: \(error)")
+            return nil
+        }
+    }
+
+    /// If automatic rollover is enabled and the recaps file holds sessions from
+    /// a period that has already ended, archives them and starts a fresh file.
+    func performAutoRolloverIfNeeded(now: Date = Date()) async {
+        let defaults = UserDefaults.standard
+        let mode = RolloverMode(
+            rawValue: defaults.string(forKey: Self.autoRolloverModeKey) ?? ""
+        ) ?? .off
+        guard mode != .off, !sessions.isEmpty else { return }
+
+        // Earliest date currently covered by the file.
+        guard let earliest = sessions.map(\.date).min(),
+              let earliestDate = Self.dateParser.date(from: earliest) else { return }
+
+        let storedWeekday = defaults.integer(forKey: Self.weeklyRolloverWeekdayKey)
+        let weekStart = storedWeekday == 0 ? Self.defaultWeekStartWeekday : storedWeekday
+        let currentPeriodStart = Self.periodStart(
+            for: now, mode: mode, weekStartWeekday: weekStart
+        )
+
+        // Anything dated before the current period belongs to a closed period.
+        if earliestDate < currentPeriodStart {
+            await archiveAndStartNew()
+        }
+    }
+
+    /// First moment of the period (week or month) containing `date`.
+    private static func periodStart(
+        for date: Date, mode: RolloverMode, weekStartWeekday: Int
+    ) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        let startOfDay = calendar.startOfDay(for: date)
+        switch mode {
+        case .off:
+            return startOfDay
+        case .weekly:
+            calendar.firstWeekday = weekStartWeekday
+            return calendar.dateInterval(of: .weekOfYear, for: startOfDay)?.start ?? startOfDay
+        case .monthly:
+            return calendar.dateInterval(of: .month, for: startOfDay)?.start ?? startOfDay
+        }
     }
 
     // MARK: - ICS export helpers
