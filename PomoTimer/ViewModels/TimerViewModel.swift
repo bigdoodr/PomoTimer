@@ -48,6 +48,12 @@ final class TimerViewModel: ObservableObject {
     init() {
         self.sessionStore = SessionStore()
         self.calendarService = CalendarService()
+        // Give the notification service the dependencies it needs to finalize
+        // a recap entered from a notification — possibly at cold launch.
+        notificationService.configure(
+            sessionStore: sessionStore,
+            calendarService: calendarService
+        )
         Task { await sessionStore.load() }
     }
 
@@ -63,7 +69,17 @@ final class TimerViewModel: ObservableObject {
         }
 
         scheduleTimer(seconds: focusMinutes * 60)
-        notificationService.scheduleFocusComplete(in: TimeInterval(focusMinutes * 60))
+        notificationService.scheduleFocusComplete(
+            in: TimeInterval(focusMinutes * 60),
+            sessionNumber: sessionCount,
+            startEpoch: (sessionStartDate ?? Date()).timeIntervalSince1970
+        )
+        LiveActivityManager.shared.start(
+            isBreak: false,
+            sessionNumber: sessionCount,
+            start: Date(),
+            end: Date().addingTimeInterval(TimeInterval(focusMinutes * 60))
+        )
         phase = .focus
     }
 
@@ -73,6 +89,7 @@ final class TimerViewModel: ObservableObject {
     func endFocusEarly() {
         cancelTimer()
         notificationService.cancelAll()
+        LiveActivityManager.shared.end()
         sessionEndDate = Date()
         showBlur()
         phase = .breakTransition
@@ -80,6 +97,10 @@ final class TimerViewModel: ObservableObject {
 
     /// Called internally when the focus countdown reaches zero.
     private func focusTimerExpired() {
+        // Handled in-app — drop the actionable notification so the recap can't
+        // also be logged from the notification (which would double-record it).
+        notificationService.cancelAll()
+        LiveActivityManager.shared.end()
         sessionEndDate = Date()
         showBlur()
         phase = .breakTransition
@@ -123,6 +144,13 @@ final class TimerViewModel: ObservableObject {
         isContinuingSession = false
         scheduleTimer(seconds: breakMinutes * 60)
         notificationService.scheduleBreakComplete(in: TimeInterval(breakMinutes * 60))
+        // Transition the same Live Activity from focus → break in place.
+        LiveActivityManager.shared.start(
+            isBreak: true,
+            sessionNumber: sessionCount,
+            start: Date(),
+            end: Date().addingTimeInterval(TimeInterval(breakMinutes * 60))
+        )
         // Blur stays on during the break screen (already shown from transition)
         phase = .takingBreak
     }
@@ -133,12 +161,15 @@ final class TimerViewModel: ObservableObject {
     func skipBreak() {
         cancelTimer()
         notificationService.cancelAll()
+        LiveActivityManager.shared.end()
         hideBlur()
         phase = .continuePrompt
     }
 
     /// Called internally when the break countdown reaches zero.
     private func breakTimerExpired() {
+        notificationService.cancelAll()
+        LiveActivityManager.shared.end()
         hideBlur()
         phase = .continuePrompt
     }
@@ -149,7 +180,23 @@ final class TimerViewModel: ObservableObject {
         phase = .setup
     }
 
+    // MARK: - Live Activity reconciliation
+
+    /// Called whenever the app becomes active. If no countdown is genuinely
+    /// running, clear any Live Activity left over from a finished session —
+    /// including an orphan that completed while the app was suspended (whose
+    /// in-memory reference is gone after a cold launch).
+    func reconcileLiveActivityOnForeground() {
+        switch phase {
+        case .focus, .takingBreak:
+            break   // a countdown is live — keep its Live Activity
+        default:
+            LiveActivityManager.shared.endAll()
+        }
+    }
+
     func endDay() {
+        LiveActivityManager.shared.end()
         phase = .summary
     }
 
@@ -157,6 +204,7 @@ final class TimerViewModel: ObservableObject {
 
     func resetForNewDay() {
         cancelTimer()
+        LiveActivityManager.shared.end()
         sessionCount = 0
         totalFocusMinutesToday = 0
         sessionStartDate = nil
@@ -250,6 +298,9 @@ final class TimerViewModel: ObservableObject {
     private func showBlur() {
         #if os(macOS)
         ScreenBlurManager.shared.showBlur()
+        // Grow the (possibly mini-player–sized) window back to a comfortable,
+        // centered size so the recap editor is fully usable.
+        MacWindowManager.shared.growForRecap()
         #endif
     }
 

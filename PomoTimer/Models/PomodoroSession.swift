@@ -52,3 +52,38 @@ struct PomodoroSession: Codable, Identifiable {
         return fmt.string(from: date)
     }
 }
+
+// MARK: - Convenience construction
+
+extension PomodoroSession {
+    /// Builds a session from raw start/end dates, deriving the legacy
+    /// "YYYY-MM-DD" / "HH:mm" string fields. Used by the background
+    /// notification recap handler (and available to the in-app flow).
+    init(
+        sessionNumber: Int,
+        start: Date,
+        end: Date,
+        durationMinutes: Int,
+        breakDurationMinutes: Int,
+        recap: String,
+        calendarEventIdentifier: String? = nil
+    ) {
+        let dateFmt = DateFormatter()
+        dateFmt.dateFormat = "yyyy-MM-dd"
+        let timeFmt = DateFormatter()
+        timeFmt.dateFormat = "HH:mm"
+
+        self.init(
+            sessionNumber: sessionNumber,
+            date: dateFmt.string(from: start),
+            startTime: timeFmt.string(from: start),
+            endTime: timeFmt.string(from: end),
+            durationMinutes: durationMinutes,
+            breakDurationMinutes: breakDurationMinutes,
+            recap: recap,
+            calendarEventIdentifier: calendarEventIdentifier,
+            startEpoch: start.timeIntervalSince1970,
+            endEpoch: end.timeIntervalSince1970
+        )
+    }
+}

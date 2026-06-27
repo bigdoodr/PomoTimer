@@ -52,10 +52,12 @@ final class ScreenBlurManager {
     }
 
     private func restoreAppWindow() {
-        guard let level = previousWindowLevel else { return }
+        // After the blur cycle the app always returns to a normal,
+        // non-floating window. The floating focus level is re-applied when a
+        // focus session next begins (see MacWindowManager.enterFocus()).
         for window in NSApplication.shared.windows where !(window is NSPanel) {
             if window.level.rawValue > NSWindow.Level.normal.rawValue {
-                window.level = level
+                window.level = .normal
             }
         }
         previousWindowLevel = nil
