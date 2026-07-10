@@ -12,6 +12,9 @@ struct SettingsView: View {
     @AppStorage(CalendarService.selectedCalendarIdentifierKey) private var selectedCalendarID: String = ""
     @AppStorage(SessionStore.autoRolloverModeKey) private var rolloverModeRaw: String = SessionStore.RolloverMode.off.rawValue
     @AppStorage(SessionStore.weeklyRolloverWeekdayKey) private var rolloverWeekday: Int = SessionStore.defaultWeekStartWeekday
+#if os(macOS)
+    @AppStorage(MacWindowManager.cornerPreferenceKey) private var cornerPreferenceRaw: String = WindowCorner.none.rawValue
+#endif
 
     private enum PickerTarget { case json, ics }
     @State private var activePickerTarget: PickerTarget?
@@ -68,6 +71,10 @@ struct SettingsView: View {
                     )
 
                     calendarSection
+
+#if os(macOS)
+                    windowCornerSection
+#endif
 
                     archiveSection
 
@@ -225,6 +232,35 @@ struct SettingsView: View {
             .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
         }
     }
+
+#if os(macOS)
+    // MARK: - Window corner (macOS only)
+
+    private var windowCornerSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Window Position", systemImage: "macwindow")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Snap the focus and mini-player windows to a screen corner when a session starts. You can still drag the window freely after it snaps.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Picker("Preferred corner", selection: $cornerPreferenceRaw) {
+                    ForEach(WindowCorner.allCases) { corner in
+                        Text(corner.label).tag(corner.rawValue)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(14)
+            .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+#endif
 
     // MARK: - Archive recaps
 

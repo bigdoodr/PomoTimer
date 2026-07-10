@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Phase 3 — Blur screen, collect recap, choose break length.
+/// Phase 3 — Blur screen, collect recap, optionally mark intention achieved,
+/// choose break length, and set the calendar event title.
 /// Mirrors phase_break_transition in PomoTimerSD.zsh
 /// (--blurscreen, --textfield editor, --selecttitle Break Length, --button2 "5 More Minutes").
 ///
@@ -12,6 +13,8 @@ struct BreakTransitionView: View {
 
     @State private var recap: String = ""
     @State private var selectedBreakMinutes: Int = 5
+    @State private var intentionAchieved: Bool = false
+    @State private var calendarTitle: String = ""
     @FocusState private var recapFocused: Bool
 
     private let breakOptions: [(label: String, minutes: Int)] = [
@@ -49,6 +52,11 @@ struct BreakTransitionView: View {
                     }
                     .padding(.top, 8)
 
+                    // Intention section (only shown when one was set)
+                    if !vm.currentIntention.isEmpty {
+                        intentionSection
+                    }
+
                     // Recap editor
                     VStack(alignment: .leading, spacing: 8) {
                         Label("What did you work on?", systemImage: "pencil.line")
@@ -71,7 +79,7 @@ struct BreakTransitionView: View {
                             .scrollContentBackground(.hidden)
                             .overlay(alignment: .topLeading) {
                                 if recap.isEmpty {
-                                    Text("Describe what you accomplished…")
+                                    Text("Describe what you accomplished\u{2026}")
                                         .foregroundStyle(.white.opacity(0.35))
                                         .padding(.top, 20)
                                         .padding(.leading, 16)
@@ -79,6 +87,9 @@ struct BreakTransitionView: View {
                                 }
                             }
                     }
+
+                    // Calendar event title
+                    calendarTitleSection
 
                     // Break length picker
                     VStack(alignment: .leading, spacing: 8) {
@@ -106,7 +117,11 @@ struct BreakTransitionView: View {
                     VStack(spacing: 12) {
                         Button {
                             recapFocused = false
-                            vm.startBreak(recap: recap, breakMinutes: selectedBreakMinutes)
+                            vm.startBreak(
+                                recap: recap,
+                                breakMinutes: selectedBreakMinutes,
+                                calendarTitle: calendarTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                            )
                         } label: {
                             Label("Start Break", systemImage: "play.fill")
                                 .font(.headline)
@@ -134,7 +149,77 @@ struct BreakTransitionView: View {
                 width * 0.88
             }
         }
-        .onAppear { recapFocused = true }
+        .onAppear {
+            recapFocused = true
+            calendarTitle = defaultCalendarTitle
+        }
+        .onChange(of: intentionAchieved) { _, achieved in
+            // Auto-fill the title from the intention when the user marks it
+            // achieved; reset to the default when they uncheck it.
+            calendarTitle = achieved && !vm.currentIntention.isEmpty
+                ? vm.currentIntention
+                : defaultCalendarTitle
+        }
+    }
+
+    // MARK: - Subviews
+
+    private var intentionSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Your Intention", systemImage: "target")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text(vm.currentIntention)
+                .font(.body)
+                .foregroundStyle(.white)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(0.1))
+                )
+
+            Button {
+                intentionAchieved.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: intentionAchieved ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(intentionAchieved ? Color.pomoMint : .white.opacity(0.5))
+                    Text(intentionAchieved ? "Intention achieved!" : "Mark as achieved")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var calendarTitleSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Calendar Event Title", systemImage: "calendar.badge.plus")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.7))
+
+            TextField("", text: $calendarTitle)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                        )
+                )
+                .foregroundStyle(.white)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var defaultCalendarTitle: String {
+        "Pomodoro Focus Session \(vm.sessionCount)"
     }
 }
 

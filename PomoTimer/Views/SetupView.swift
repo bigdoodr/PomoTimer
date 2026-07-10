@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Phase 1 — Choose focus duration and kick off a session.
+/// Phase 1 — Choose focus duration, set an optional intention, and kick off a session.
 /// Mirrors phase_setup in PomoTimerSD.zsh.
 struct SetupView: View {
 
@@ -9,6 +9,7 @@ struct SetupView: View {
     @EnvironmentObject var store: SessionStore
 
     @State private var selectedMinutes: Int = 25
+    @State private var intention: String = ""
     @State private var showHistory = false
     @State private var showSettings = false
     @State private var showFolderPicker = false
@@ -26,98 +27,116 @@ struct SetupView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 32) {
-            // Header
-            ZStack(alignment: .topTrailing) {
-                VStack(spacing: 8) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 52, weight: .light))
-                        .foregroundStyle(Color.pomoIndigo)
+        ScrollView {
+            VStack(spacing: 32) {
+                // Header
+                ZStack(alignment: .topTrailing) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 52, weight: .light))
+                            .foregroundStyle(Color.pomoIndigo)
 
-                    Text("PomoLedger")
-                        .font(.largeTitle.bold())
+                        Text("PomoLedger")
+                            .font(.largeTitle.bold())
 
-                    Text("Ready to focus?")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-
-                VStack(alignment: .trailing, spacing: 6) {
-                    Button {
-                        dismissTip()
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                        Text("Ready to focus?")
                             .font(.title3)
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
 
-                    if showSettingsTip {
-                        settingsTipBubble
-                            .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .topTrailing)))
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Button {
+                            dismissTip()
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
+                        if showSettingsTip {
+                            settingsTipBubble
+                                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .topTrailing)))
+                        }
                     }
                 }
-            }
-            .padding(.top, 8)
+                .padding(.top, 8)
 
-            // Duration picker
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Focus Duration", systemImage: "clock")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-
-                Picker("Focus Duration", selection: $selectedMinutes) {
-                    ForEach(durationOptions, id: \.minutes) { opt in
-                        Text(opt.label).tag(opt.minutes)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
-            }
-            .padding(.horizontal, 4)
-
-            // CTA
-            if store.hasConfiguredStorage {
-                Button {
-                    vm.beginFocusSession(focusMinutes: selectedMinutes)
-                } label: {
-                    Label("Start Focusing", systemImage: "play.fill")
+                // Duration picker
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Focus Duration", systemImage: "clock")
                         .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.pomoIndigo)
-                .cornerRadius(14)
-            } else {
-                folderRequiredPrompt
-            }
+                        .foregroundStyle(.secondary)
 
-            // Subtle history link
-            if !store.sessions.isEmpty {
-                Button {
-                    showHistory = true
-                } label: {
-                    Label(
-                        "\(store.sessions.count) session\(store.sessions.count == 1 ? "" : "s") recorded",
-                        systemImage: "clock.arrow.circlepath"
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Picker("Focus Duration", selection: $selectedMinutes) {
+                        ForEach(durationOptions, id: \.minutes) { opt in
+                            Text(opt.label).tag(opt.minutes)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
                 }
-                .buttonStyle(.plain)
-            }
+                .padding(.horizontal, 4)
 
-            Spacer()
-        }
-        .padding(.vertical, 28)
-        .containerRelativeFrame(.horizontal) { width, _ in
-            min(width * 0.88, 520)
+                // Intention (optional)
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Intention", systemImage: "target")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+
+                    TextField("What will you focus on? (optional)", text: $intention)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .padding(.horizontal, 4)
+
+                // CTA
+                if store.hasConfiguredStorage {
+                    Button {
+                        vm.beginFocusSession(
+                            focusMinutes: selectedMinutes,
+                            intention: intention.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                    } label: {
+                        Label("Start Focusing", systemImage: "play.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.pomoIndigo)
+                    .cornerRadius(14)
+                } else {
+                    folderRequiredPrompt
+                }
+
+                // Subtle history link
+                if !store.sessions.isEmpty {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Label(
+                            "\(store.sessions.count) session\(store.sessions.count == 1 ? "" : "s") recorded",
+                            systemImage: "clock.arrow.circlepath"
+                        )
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer(minLength: 20)
+            }
+            .padding(.vertical, 28)
+            .containerRelativeFrame(.horizontal) { width, _ in
+                min(width * 0.88, 520)
+            }
         }
         .sheet(isPresented: $showHistory) {
             SessionHistoryView()

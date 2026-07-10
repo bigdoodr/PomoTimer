@@ -26,6 +26,8 @@ final class TimerViewModel: ObservableObject {
     @Published var sessionCount: Int = 0
     @Published var totalFocusMinutesToday: Int = 0
     @Published var completedSessions: [PomodoroSession] = []
+    /// The intention the user typed when starting the current focus session.
+    @Published var currentIntention: String = ""
 
     // MARK: Internal session state
     private(set) var sessionStartDate: Date?
@@ -60,12 +62,15 @@ final class TimerViewModel: ObservableObject {
     // MARK: - Setup phase
 
     /// Called when the user taps "Start Focusing" from SetupView.
-    func beginFocusSession(focusMinutes: Int) {
+    func beginFocusSession(focusMinutes: Int, intention: String = "") {
         self.focusMinutes = focusMinutes
         sessionCount += 1
 
         if !isContinuingSession {
             sessionStartDate = Date()
+            // Only update the intention when starting a fresh session, not
+            // when the user taps "5 More Minutes" (which continues the same one).
+            currentIntention = intention
         }
 
         scheduleTimer(seconds: focusMinutes * 60)
@@ -110,7 +115,8 @@ final class TimerViewModel: ObservableObject {
 
     /// User taps "5 More Minutes" in BreakTransitionView.
     func requestFiveMoreMinutes() {
-        // Preserve sessionStartDate; just tack on 5 more minutes to same session
+        // Preserve sessionStartDate and currentIntention; just tack on 5 more
+        // minutes to same session.
         isContinuingSession = true
         sessionCount -= 1   // will be re-incremented in beginFocusSession
         hideBlur()
@@ -118,7 +124,7 @@ final class TimerViewModel: ObservableObject {
     }
 
     /// User fills in recap + picks break length, taps "Start Break".
-    func startBreak(recap: String, breakMinutes: Int) {
+    func startBreak(recap: String, breakMinutes: Int, calendarTitle: String = "") {
         self.breakMinutes = breakMinutes
 
         // Persist the completed session
@@ -129,7 +135,9 @@ final class TimerViewModel: ObservableObject {
                 end: end,
                 duration: duration,
                 breakMinutes: breakMinutes,
-                recap: recap
+                recap: recap,
+                intention: currentIntention,
+                calendarTitle: calendarTitle
             )
             totalFocusMinutesToday += duration
             completedSessions.append(session)
@@ -210,6 +218,7 @@ final class TimerViewModel: ObservableObject {
         sessionStartDate = nil
         sessionEndDate = nil
         isContinuingSession = false
+        currentIntention = ""
         completedSessions = []
         phase = .setup
     }
@@ -272,7 +281,9 @@ final class TimerViewModel: ObservableObject {
 
     private func buildSession(
         start: Date, end: Date,
-        duration: Int, breakMinutes: Int, recap: String
+        duration: Int, breakMinutes: Int, recap: String,
+        intention: String = "",
+        calendarTitle: String = ""
     ) -> PomodoroSession {
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"
@@ -289,7 +300,9 @@ final class TimerViewModel: ObservableObject {
             recap: recap,
             calendarEventIdentifier: nil,
             startEpoch: start.timeIntervalSince1970,
-            endEpoch: end.timeIntervalSince1970
+            endEpoch: end.timeIntervalSince1970,
+            intention: intention,
+            calendarTitle: calendarTitle
         )
     }
 
@@ -298,8 +311,8 @@ final class TimerViewModel: ObservableObject {
     private func showBlur() {
         #if os(macOS)
         ScreenBlurManager.shared.showBlur()
-        // Grow the (possibly mini-player–sized) window back to a comfortable,
-        // centered size so the recap editor is fully usable.
+        // Grow the (possibly mini-player–sized or docked) window back to a
+        // comfortable, centered size so the recap editor is fully usable.
         MacWindowManager.shared.growForRecap()
         #endif
     }

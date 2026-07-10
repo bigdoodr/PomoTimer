@@ -40,8 +40,15 @@ final class ScreenBlurManager {
     private func raiseAppWindow() {
         guard let window = NSApplication.shared.mainWindow
                 ?? NSApplication.shared.keyWindow
-                ?? NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) })
+                ?? NSApplication.shared.windows.first(where: {
+                    ($0.isVisible || $0.isMiniaturized) && !($0 is NSPanel)
+                })
         else { return }
+
+        // If the timer expired while the window was docked, bring it back first.
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
 
         previousWindowLevel = window.level
         let overlayLevel = Int(CGWindowLevelForKey(.screenSaverWindow)) - 1

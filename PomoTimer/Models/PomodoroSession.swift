@@ -3,8 +3,8 @@ import Foundation
 /// One completed Pomodoro focus session.
 /// Matches the JSON schema written by PomoTimerSD.zsh:
 ///   { session, date, start, end, duration_min, recap }
-/// Extended with break duration, iCloud-safe UUID, and raw epoch timestamps
-/// needed for ICS generation.
+/// Extended with break duration, iCloud-safe UUID, raw epoch timestamps
+/// needed for ICS generation, and optional intention/calendar-title fields.
 struct PomodoroSession: Codable, Identifiable {
     var id: UUID = UUID()
     var sessionNumber: Int
@@ -20,6 +20,10 @@ struct PomodoroSession: Codable, Identifiable {
     var startEpoch: TimeInterval
     var endEpoch: TimeInterval
 
+    // Optional fields added in v2 — default to "" so older JSON still loads.
+    var intention: String = ""
+    var calendarTitle: String = ""
+
     // MARK: - CodingKeys mapping to the legacy zsh JSON field names
     enum CodingKeys: String, CodingKey {
         case id
@@ -33,6 +37,8 @@ struct PomodoroSession: Codable, Identifiable {
         case calendarEventIdentifier = "calendar_event_id"
         case startEpoch      = "start_epoch"
         case endEpoch        = "end_epoch"
+        case intention
+        case calendarTitle   = "calendar_title"
     }
 
     // MARK: - Computed helpers
@@ -46,10 +52,40 @@ struct PomodoroSession: Codable, Identifiable {
     var icsStart: String { isoCompact(from: startDate) }
     var icsEnd: String   { isoCompact(from: endDate) }
 
+    /// The title used for the calendar event. Falls back to the default
+    /// "Pomodoro Focus Session N" when no custom title was set.
+    var effectiveCalendarTitle: String {
+        calendarTitle.isEmpty ? "Pomodoro Focus Session \(sessionNumber)" : calendarTitle
+    }
+
     private func isoCompact(from date: Date) -> String {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyyMMdd'T'HHmmss"
         return fmt.string(from: date)
+    }
+}
+
+// MARK: - Backward-compatible Decodable
+
+extension PomodoroSession {
+    /// Custom decoder so that JSON written before intention/calendarTitle were
+    /// added still loads correctly — missing keys fall back to empty strings.
+    /// Defined in an extension so Swift preserves the synthesized memberwise init.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id                      = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        sessionNumber           = try c.decode(Int.self, forKey: .sessionNumber)
+        date                    = try c.decode(String.self, forKey: .date)
+        startTime               = try c.decode(String.self, forKey: .startTime)
+        endTime                 = try c.decode(String.self, forKey: .endTime)
+        durationMinutes         = try c.decode(Int.self, forKey: .durationMinutes)
+        breakDurationMinutes    = (try? c.decode(Int.self, forKey: .breakDurationMinutes)) ?? 0
+        recap                   = try c.decode(String.self, forKey: .recap)
+        calendarEventIdentifier = try? c.decode(String.self, forKey: .calendarEventIdentifier)
+        startEpoch              = try c.decode(TimeInterval.self, forKey: .startEpoch)
+        endEpoch                = try c.decode(TimeInterval.self, forKey: .endEpoch)
+        intention               = (try? c.decode(String.self, forKey: .intention)) ?? ""
+        calendarTitle           = (try? c.decode(String.self, forKey: .calendarTitle)) ?? ""
     }
 }
 
@@ -66,7 +102,9 @@ extension PomodoroSession {
         durationMinutes: Int,
         breakDurationMinutes: Int,
         recap: String,
-        calendarEventIdentifier: String? = nil
+        calendarEventIdentifier: String? = nil,
+        intention: String = "",
+        calendarTitle: String = ""
     ) {
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"
@@ -83,7 +121,9 @@ extension PomodoroSession {
             recap: recap,
             calendarEventIdentifier: calendarEventIdentifier,
             startEpoch: start.timeIntervalSince1970,
-            endEpoch: end.timeIntervalSince1970
+            endEpoch: end.timeIntervalSince1970,
+            intention: intention,
+            calendarTitle: calendarTitle
         )
     }
 }
