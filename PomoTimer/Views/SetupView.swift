@@ -133,11 +133,12 @@ struct SetupView: View {
 
                 Spacer(minLength: 20)
             }
+            .padding(.horizontal, 24)
             .padding(.vertical, 28)
-            .containerRelativeFrame(.horizontal) { width, _ in
-                min(width * 0.88, 520)
-            }
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
         .sheet(isPresented: $showHistory) {
             SessionHistoryView()
         }
