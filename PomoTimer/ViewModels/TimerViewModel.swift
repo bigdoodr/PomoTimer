@@ -73,7 +73,9 @@ final class TimerViewModel: ObservableObject {
             currentIntention = intention
         }
 
-        scheduleTimer(seconds: focusMinutes * 60)
+        scheduleTimer(seconds: focusMinutes * 60) { [weak self] in
+            self?.focusTimerExpired()
+        }
         notificationService.scheduleFocusComplete(
             in: TimeInterval(focusMinutes * 60),
             sessionNumber: sessionCount,
@@ -96,8 +98,10 @@ final class TimerViewModel: ObservableObject {
         notificationService.cancelAll()
         LiveActivityManager.shared.end()
         sessionEndDate = Date()
-        showBlur()
+        // Set phase before showBlur so the SwiftUI update is enqueued before
+        // any AppKit window management runs.
         phase = .breakTransition
+        showBlur()
     }
 
     /// Called internally when the focus countdown reaches zero.
@@ -107,8 +111,10 @@ final class TimerViewModel: ObservableObject {
         notificationService.cancelAll()
         LiveActivityManager.shared.end()
         sessionEndDate = Date()
-        showBlur()
+        // Set phase before showBlur so the SwiftUI update is enqueued before
+        // any AppKit window management runs.
         phase = .breakTransition
+        showBlur()
     }
 
     // MARK: - Break transition phase
@@ -150,7 +156,9 @@ final class TimerViewModel: ObservableObject {
         }
 
         isContinuingSession = false
-        scheduleTimer(seconds: breakMinutes * 60)
+        scheduleTimer(seconds: breakMinutes * 60) { [weak self] in
+            self?.breakTimerExpired()
+        }
         notificationService.scheduleBreakComplete(in: TimeInterval(breakMinutes * 60))
         // Transition the same Live Activity from focus → break in place.
         LiveActivityManager.shared.start(
@@ -252,7 +260,13 @@ final class TimerViewModel: ObservableObject {
 
     // MARK: - Private helpers
 
-    private func scheduleTimer(seconds: Int) {
+    /// Schedule a countdown timer. The `onExpiry` closure is called exactly
+    /// once when the timer reaches zero; it is NOT called if `cancelTimer()`
+    /// is invoked first (e.g. the user ends the session early). Storing the
+    /// intended action here — rather than branching on `self.phase` inside the
+    /// sink — prevents a class of bugs where the phase read inside the closure
+    /// races against state changes triggered by UI interactions.
+    private func scheduleTimer(seconds: Int, onExpiry: @escaping () -> Void) {
         cancelTimer()
         secondsRemaining = seconds
         timerTarget = Date().addingTimeInterval(TimeInterval(seconds))
@@ -264,11 +278,7 @@ final class TimerViewModel: ObservableObject {
                 self.secondsRemaining = remaining
                 if remaining == 0 {
                     self.cancelTimer()
-                    switch self.phase {
-                    case .focus:       self.focusTimerExpired()
-                    case .takingBreak: self.breakTimerExpired()
-                    default: break
-                    }
+                    onExpiry()
                 }
             }
     }

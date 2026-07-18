@@ -18,14 +18,18 @@ final class ScreenBlurManager {
     // MARK: - Public
 
     func showBlur() {
-        guard overlayPanels.isEmpty else { return }   // already showing
-
-        for screen in NSScreen.screens {
-            let panel = makeOverlayPanel(for: screen)
-            panel.orderFront(nil)
-            overlayPanels.append(panel)
+        // Create panels only once; skip if already showing.
+        if overlayPanels.isEmpty {
+            for screen in NSScreen.screens {
+                let panel = makeOverlayPanel(for: screen)
+                panel.orderFront(nil)
+                overlayPanels.append(panel)
+            }
         }
-
+        // Always raise the app window above any existing panels — this is the
+        // fix for the bug where calling showBlur() while panels were already
+        // present skipped raiseAppWindow(), leaving the app window hidden
+        // behind the dark overlay.
         raiseAppWindow()
     }
 
