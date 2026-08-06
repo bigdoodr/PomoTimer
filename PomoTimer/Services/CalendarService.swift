@@ -156,11 +156,24 @@ END:VCALENDAR
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
     }
 
-    /// Builds the event notes string: recap (if any) plus a "Made with
-    /// PomoLedger" attribution line appended to every event.
+    /// Builds the event notes string. When an intention was set but not marked
+    /// achieved, it is prepended as "Initial intention: …" so the original goal
+    /// is visible alongside the recap. Always appends a "Made with PomoLedger"
+    /// attribution line.
     private func notesWithAttribution(_ session: PomodoroSession) -> String {
+        var parts: [String] = []
+
+        if !session.intention.isEmpty && !session.intentionAchieved {
+            parts.append("Initial intention: \(session.intention)")
+        }
+
         let base = session.recap.trimmingCharacters(in: .whitespacesAndNewlines)
-        return base.isEmpty ? "Made with PomoLedger" : base + "\n\nMade with PomoLedger"
+        if !base.isEmpty {
+            parts.append(base)
+        }
+
+        parts.append("Made with PomoLedger")
+        return parts.joined(separator: "\n\n")
     }
 
     /// Escapes special characters per RFC 5545 §3.3.11.

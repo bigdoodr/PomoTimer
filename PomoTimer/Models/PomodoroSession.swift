@@ -24,6 +24,10 @@ struct PomodoroSession: Codable, Identifiable {
     var intention: String = ""
     var calendarTitle: String = ""
 
+    // Optional field added in v3 — defaults to true so older JSON loads without
+    // spuriously annotating descriptions on pre-existing sessions.
+    var intentionAchieved: Bool = true
+
     // MARK: - CodingKeys mapping to the legacy zsh JSON field names
     enum CodingKeys: String, CodingKey {
         case id
@@ -39,6 +43,7 @@ struct PomodoroSession: Codable, Identifiable {
         case endEpoch        = "end_epoch"
         case intention
         case calendarTitle   = "calendar_title"
+        case intentionAchieved = "intention_achieved"
     }
 
     // MARK: - Computed helpers
@@ -68,8 +73,8 @@ struct PomodoroSession: Codable, Identifiable {
 // MARK: - Backward-compatible Decodable
 
 extension PomodoroSession {
-    /// Custom decoder so that JSON written before intention/calendarTitle were
-    /// added still loads correctly — missing keys fall back to empty strings.
+    /// Custom decoder so that JSON written before intention/calendarTitle/intentionAchieved were
+    /// added still loads correctly — missing keys fall back to safe defaults.
     /// Defined in an extension so Swift preserves the synthesized memberwise init.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -86,6 +91,7 @@ extension PomodoroSession {
         endEpoch                = try c.decode(TimeInterval.self, forKey: .endEpoch)
         intention               = (try? c.decode(String.self, forKey: .intention)) ?? ""
         calendarTitle           = (try? c.decode(String.self, forKey: .calendarTitle)) ?? ""
+        intentionAchieved       = (try? c.decode(Bool.self, forKey: .intentionAchieved)) ?? true
     }
 }
 
@@ -104,6 +110,7 @@ extension PomodoroSession {
         recap: String,
         calendarEventIdentifier: String? = nil,
         intention: String = "",
+        intentionAchieved: Bool = true,
         calendarTitle: String = ""
     ) {
         let dateFmt = DateFormatter()
@@ -123,7 +130,8 @@ extension PomodoroSession {
             startEpoch: start.timeIntervalSince1970,
             endEpoch: end.timeIntervalSince1970,
             intention: intention,
-            calendarTitle: calendarTitle
+            calendarTitle: calendarTitle,
+            intentionAchieved: intentionAchieved
         )
     }
 }

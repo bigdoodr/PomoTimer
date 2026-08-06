@@ -120,7 +120,8 @@ struct BreakTransitionView: View {
                             vm.startBreak(
                                 recap: recap,
                                 breakMinutes: selectedBreakMinutes,
-                                calendarTitle: calendarTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                                calendarTitle: calendarTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+                                intentionAchieved: intentionAchieved
                             )
                         } label: {
                             Label("Start Break", systemImage: "play.fill")

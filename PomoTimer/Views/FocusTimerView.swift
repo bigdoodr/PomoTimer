@@ -87,6 +87,17 @@ struct FocusTimerView: View {
             Text("Focusing 🧐")
                 .font(.title3.weight(.medium))
 
+            // Intention (shown only when one was set for this session)
+            if !vm.currentIntention.isEmpty {
+                Text(vm.currentIntention)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 10))
+            }
+
             // End early button
             Button(role: .destructive) {
                 vm.endFocusEarly()
@@ -148,6 +159,13 @@ struct FocusTimerView: View {
                 Text("Session \(vm.sessionCount)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                if !vm.currentIntention.isEmpty {
+                    Text(vm.currentIntention)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
 
             Spacer(minLength: 0)
