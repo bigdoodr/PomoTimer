@@ -31,8 +31,10 @@ struct BreakTransitionView: View {
             Color.black.opacity(0.72)
                 .ignoresSafeArea()
 
+            GeometryReader { proxy in
             ScrollView {
                 VStack(spacing: 24) {
+                    Spacer(minLength: 0)
 
                     // Completion badge
                     VStack(spacing: 10) {
@@ -143,8 +145,12 @@ struct BreakTransitionView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    Spacer(minLength: 0)
                 }
                 .padding(.vertical, 28)
+                .frame(minHeight: proxy.size.height)
+            }
             }
             .containerRelativeFrame(.horizontal) { width, _ in
                 width * 0.88

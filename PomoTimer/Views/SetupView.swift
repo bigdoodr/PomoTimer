@@ -27,8 +27,11 @@ struct SetupView: View {
     ]
 
     var body: some View {
+        GeometryReader { proxy in
         ScrollView {
             VStack(spacing: 32) {
+                Spacer(minLength: 0)
+
                 // Header
                 ZStack(alignment: .topTrailing) {
                     VStack(spacing: 8) {
@@ -131,14 +134,15 @@ struct SetupView: View {
                     .buttonStyle(.plain)
                 }
 
-                Spacer(minLength: 20)
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 28)
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
+            .frame(minHeight: proxy.size.height)
         }
-        .frame(maxWidth: .infinity)
+        }
         .sheet(isPresented: $showHistory) {
             SessionHistoryView()
         }

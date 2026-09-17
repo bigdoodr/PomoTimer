@@ -43,6 +43,7 @@ struct FocusTimerView: View {
 
     private var fullLayout: some View {
         VStack(spacing: 28) {
+            Spacer()
 
             // Session badge
             HStack(spacing: 6) {

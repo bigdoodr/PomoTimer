@@ -344,12 +344,16 @@ struct SettingsView: View {
     }
 
     private func abbreviate(_ path: String) -> String {
-        if let home = NSHomeDirectory() as String? {
-            if path.hasPrefix(home) {
-                return "~" + path.dropFirst(home.count)
-            }
+        if let home = NSHomeDirectory() as String?, path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
         }
-        return path
+        // Folders picked via the document picker (Files app, iCloud Drive,
+        // "On My iPhone") resolve to a File Provider path that never starts
+        // with our sandbox's home directory — fall back to just the folder
+        // name so we never show raw internal container paths.
+        let url = URL(fileURLWithPath: path)
+        let parent = url.deletingLastPathComponent().lastPathComponent
+        return parent.isEmpty ? url.lastPathComponent : "\u{2026}/\(parent)/\(url.lastPathComponent)"
     }
 }
 

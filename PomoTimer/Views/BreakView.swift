@@ -14,6 +14,7 @@ struct BreakView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 28) {
+                Spacer()
 
                 // Icon
                 Image(systemName: "cup.and.saucer.fill")
