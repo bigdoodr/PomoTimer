@@ -16,13 +16,13 @@ struct SummaryView: View {
     var body: some View {
         GeometryReader { proxy in
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 14) {
                 Spacer(minLength: 0)
 
                 // Trophy header
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     Image(systemName: "trophy.circle.fill")
-                        .font(.system(size: 72, weight: .light))
+                        .font(.system(size: 56, weight: .light))
                         .foregroundStyle(.yellow)
                         .shadow(color: .yellow.opacity(0.4), radius: 16)
 
@@ -38,13 +38,13 @@ struct SummaryView: View {
                 // Stats cards
                 HStack(spacing: 16) {
                     StatCard(
-                        value: "\(vm.sessionCount)",
+                        value: "\(todaySessions.count)",
                         label: "Sessions",
                         icon: "flame.fill",
                         color: .pomoRed
                     )
                     StatCard(
-                        value: "\(vm.totalFocusMinutesToday)",
+                        value: "\(todaySessions.reduce(0) { $0 + $1.durationMinutes })",
                         label: "Minutes focused",
                         icon: "clock.fill",
                         color: .pomoIndigo
@@ -52,7 +52,7 @@ struct SummaryView: View {
                 }
 
                 // Storage info
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     storageRow(
                         icon: "doc.text.fill",
                         label: "Recaps saved",
@@ -64,7 +64,7 @@ struct SummaryView: View {
                         detail: calendarService.isAuthorized ? "Added to Calendar.app" : "Not connected"
                     )
                 }
-                .padding(16)
+                .padding(12)
                 .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 14))
 
                 // Export ICS files for Outlook
@@ -78,8 +78,6 @@ struct SummaryView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(Color.pomoIndigo)
-
-                Divider()
 
                 // Start a new day
                 Button {
@@ -96,9 +94,10 @@ struct SummaryView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 28)
+            .padding(.vertical, 12)
             .frame(minHeight: proxy.size.height)
         }
+        .scrollBounceBehavior(.basedOnSize)
         }
         .containerRelativeFrame(.horizontal) { width, _ in
             min(width * 0.88, 520)
@@ -109,6 +108,12 @@ struct SummaryView: View {
     }
 
     // MARK: - Private
+
+    /// Sessions that started today. Derived from the store (not the in-memory
+    /// counters) so the totals respect the date change and survive relaunches.
+    private var todaySessions: [PomodoroSession] {
+        store.sessions.filter { Calendar.current.isDateInToday($0.startDate) }
+    }
 
     private var recapsSavedDetail: String {
         customJSONPath.isEmpty ? "Not saved" : abbreviate(customJSONPath)
@@ -184,19 +189,19 @@ private struct StatCard: View {
     let color: Color
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .font(.system(size: 32, weight: .bold, design: .rounded))
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(16)
+        .padding(12)
         .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 14))
     }
 }

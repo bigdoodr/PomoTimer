@@ -28,6 +28,11 @@ struct PomodoroSession: Codable, Identifiable {
     // spuriously annotating descriptions on pre-existing sessions.
     var intentionAchieved: Bool = true
 
+    // Fields added in v4 — whether the focus session was ended before the timer
+    // ran out, and why. Default to false / "" so older JSON loads unchanged.
+    var endedEarly: Bool = false
+    var interruptionReason: String = ""
+
     // MARK: - CodingKeys mapping to the legacy zsh JSON field names
     enum CodingKeys: String, CodingKey {
         case id
@@ -44,6 +49,8 @@ struct PomodoroSession: Codable, Identifiable {
         case intention
         case calendarTitle   = "calendar_title"
         case intentionAchieved = "intention_achieved"
+        case endedEarly      = "ended_early"
+        case interruptionReason = "interruption_reason"
     }
 
     // MARK: - Computed helpers
@@ -92,6 +99,8 @@ extension PomodoroSession {
         intention               = (try? c.decode(String.self, forKey: .intention)) ?? ""
         calendarTitle           = (try? c.decode(String.self, forKey: .calendarTitle)) ?? ""
         intentionAchieved       = (try? c.decode(Bool.self, forKey: .intentionAchieved)) ?? true
+        endedEarly              = (try? c.decode(Bool.self, forKey: .endedEarly)) ?? false
+        interruptionReason      = (try? c.decode(String.self, forKey: .interruptionReason)) ?? ""
     }
 }
 
@@ -111,7 +120,9 @@ extension PomodoroSession {
         calendarEventIdentifier: String? = nil,
         intention: String = "",
         intentionAchieved: Bool = true,
-        calendarTitle: String = ""
+        calendarTitle: String = "",
+        endedEarly: Bool = false,
+        interruptionReason: String = ""
     ) {
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"
@@ -131,7 +142,9 @@ extension PomodoroSession {
             endEpoch: end.timeIntervalSince1970,
             intention: intention,
             calendarTitle: calendarTitle,
-            intentionAchieved: intentionAchieved
+            intentionAchieved: intentionAchieved,
+            endedEarly: endedEarly,
+            interruptionReason: interruptionReason
         )
     }
 }

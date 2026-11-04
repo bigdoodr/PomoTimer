@@ -28,6 +28,10 @@ final class TimerViewModel: ObservableObject {
     @Published var completedSessions: [PomodoroSession] = []
     /// The intention the user typed when starting the current focus session.
     @Published var currentIntention: String = ""
+    /// True when the focus session that just finished was ended by the user
+    /// before the timer ran out. "5 More Minutes" doesn't set it; the flag is
+    /// re-evaluated each time the focus countdown ends.
+    @Published private(set) var endedEarly: Bool = false
 
     // MARK: Internal session state
     private(set) var sessionStartDate: Date?
@@ -98,6 +102,7 @@ final class TimerViewModel: ObservableObject {
         notificationService.cancelAll()
         LiveActivityManager.shared.end()
         sessionEndDate = Date()
+        endedEarly = true
         // Set phase before showBlur so the SwiftUI update is enqueued before
         // any AppKit window management runs.
         phase = .breakTransition
@@ -111,6 +116,7 @@ final class TimerViewModel: ObservableObject {
         notificationService.cancelAll()
         LiveActivityManager.shared.end()
         sessionEndDate = Date()
+        endedEarly = false
         // Set phase before showBlur so the SwiftUI update is enqueued before
         // any AppKit window management runs.
         phase = .breakTransition
@@ -130,7 +136,11 @@ final class TimerViewModel: ObservableObject {
     }
 
     /// User fills in recap + picks break length, taps "Start Break".
-    func startBreak(recap: String, breakMinutes: Int, calendarTitle: String = "", intentionAchieved: Bool = true) {
+    func startBreak(
+        recap: String, breakMinutes: Int,
+        calendarTitle: String = "", intentionAchieved: Bool = true,
+        interruptionReason: String = ""
+    ) {
         self.breakMinutes = breakMinutes
 
         // Persist the completed session
@@ -144,7 +154,8 @@ final class TimerViewModel: ObservableObject {
                 recap: recap,
                 intention: currentIntention,
                 intentionAchieved: intentionAchieved,
-                calendarTitle: calendarTitle
+                calendarTitle: calendarTitle,
+                interruptionReason: interruptionReason
             )
             totalFocusMinutesToday += duration
             completedSessions.append(session)
@@ -157,6 +168,15 @@ final class TimerViewModel: ObservableObject {
         }
 
         isContinuingSession = false
+
+        // "No Break; Done for Now" — the session is saved above; skip the break
+        // entirely and go straight to the summary.
+        if breakMinutes == 0 {
+            hideBlur()
+            endDay()
+            return
+        }
+
         scheduleTimer(seconds: breakMinutes * 60) { [weak self] in
             self?.breakTimerExpired()
         }
@@ -215,6 +235,9 @@ final class TimerViewModel: ObservableObject {
     func endDay() {
         LiveActivityManager.shared.end()
         phase = .summary
+        #if os(macOS)
+        MacWindowManager.shared.growForSummary()
+        #endif
     }
 
     // MARK: - Summary / reset
@@ -295,7 +318,8 @@ final class TimerViewModel: ObservableObject {
         duration: Int, breakMinutes: Int, recap: String,
         intention: String = "",
         intentionAchieved: Bool = true,
-        calendarTitle: String = ""
+        calendarTitle: String = "",
+        interruptionReason: String = ""
     ) -> PomodoroSession {
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"

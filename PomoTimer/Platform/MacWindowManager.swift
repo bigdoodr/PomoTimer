@@ -53,7 +53,9 @@ final class MacWindowManager {
     /// (see PomoTimerApp's `.frame(minWidth:minHeight:)`).
     private let miniSize = NSSize(width: 320, height: 124)
     /// Roomy, centered size for the recap / break-transition screen.
-    private let recapSize = NSSize(width: 480, height: 600)
+    private let recapSize = NSSize(width: 480, height: 720)
+    /// Size for the end-of-day summary screen.
+    private let summarySize = NSSize(width: 480, height: 660)
 
     private let cornerMargin: CGFloat = 16
 
@@ -79,20 +81,33 @@ final class MacWindowManager {
     /// is fully visible — even if the user had dragged the window mostly
     /// off-screen or minimized it to the dock while the timer was running.
     func growForRecap() {
+        centerWindow(at: recapSize)
+    }
+
+    /// Resize and center the window for the end-of-day summary screen.
+    func growForSummary() {
+        centerWindow(at: summarySize)
+    }
+
+    // MARK: - Private
+
+    /// Centers the window on its screen at `size`, shrunk if needed so it
+    /// never exceeds the screen's visible area (small laptop displays).
+    private func centerWindow(at size: NSSize) {
         guard let window = mainWindow else { return }
         if window.isMiniaturized {
             window.deminiaturize(nil)
         }
         var frame = window.frame
-        frame.size = recapSize
+        frame.size = size
         if let visible = (window.screen ?? NSScreen.main)?.visibleFrame {
-            frame.origin.x = visible.midX - recapSize.width / 2
-            frame.origin.y = visible.midY - recapSize.height / 2
+            frame.size.width = min(size.width, visible.width)
+            frame.size.height = min(size.height, visible.height)
+            frame.origin.x = visible.midX - frame.width / 2
+            frame.origin.y = visible.midY - frame.height / 2
         }
         window.setFrame(frame, display: true, animate: true)
     }
-
-    // MARK: - Private
 
     /// The main content window (excludes the blur `NSPanel` overlays).
     /// Includes miniaturized windows so the window can be found and restored

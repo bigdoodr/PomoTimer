@@ -10,7 +10,17 @@ import AppKit
 final class ScreenBlurManager {
 
     static let shared = ScreenBlurManager()
-    private init() {}
+    private init() {
+        // Displays were added/removed or a resolution/arrangement changed:
+        // the existing panels no longer match the screens, so rebuild them.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.rebuildPanelsForCurrentScreens()
+        }
+    }
 
     private var overlayPanels: [NSPanel] = []
     private var previousWindowLevel: NSWindow.Level?
@@ -37,6 +47,19 @@ final class ScreenBlurManager {
         overlayPanels.forEach { $0.orderOut(nil) }
         overlayPanels.removeAll()
         restoreAppWindow()
+    }
+
+    /// Re-creates the overlay panels so they cover the current screens.
+    /// No-op when the blur isn't showing. The app window already sits above
+    /// the overlay level, so it doesn't need to be raised again.
+    private func rebuildPanelsForCurrentScreens() {
+        guard !overlayPanels.isEmpty else { return }
+        overlayPanels.forEach { $0.orderOut(nil) }
+        overlayPanels = NSScreen.screens.map { screen in
+            let panel = makeOverlayPanel(for: screen)
+            panel.orderFront(nil)
+            return panel
+        }
     }
 
     // MARK: - App window management

@@ -15,7 +15,13 @@ struct BreakTransitionView: View {
     @State private var selectedBreakMinutes: Int = 5
     @State private var intentionAchieved: Bool = false
     @State private var calendarTitle: String = ""
+    @State private var interruptionChoice: String? = nil
+    @State private var interruptionNote: String = ""
     @FocusState private var recapFocused: Bool
+
+    /// Quick-tap answers to "What pulled you away?" (shown only when the
+    /// session was ended early).
+    private let interruptionOptions = ["Meeting", "Message", "Walk-up", "Finished Early", "Other"]
 
     private let breakOptions: [(label: String, minutes: Int)] = [
         ("5 min — Standard",    5),
@@ -23,6 +29,7 @@ struct BreakTransitionView: View {
         ("15 min — Long Break", 15),
         ("30 min — Lunch",      30),
         ("60 min — Long Lunch", 60),
+        ("No Break; Done for Now", 0),
     ]
 
     var body: some View {
@@ -33,13 +40,13 @@ struct BreakTransitionView: View {
 
             GeometryReader { proxy in
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     Spacer(minLength: 0)
 
                     // Completion badge
-                    VStack(spacing: 10) {
+                    VStack(spacing: 8) {
                         Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 52))
+                            .font(.system(size: 40))
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(.white, Color.pomoRed, Color.pomoMint)
 
@@ -59,6 +66,11 @@ struct BreakTransitionView: View {
                         intentionSection
                     }
 
+                    // Interruption reason (only when the session was ended early)
+                    if vm.endedEarly {
+                        interruptionSection
+                    }
+
                     // Recap editor
                     VStack(alignment: .leading, spacing: 8) {
                         Label("What did you work on?", systemImage: "pencil.line")
@@ -67,7 +79,7 @@ struct BreakTransitionView: View {
 
                         TextEditor(text: $recap)
                             .focused($recapFocused)
-                            .frame(minHeight: 80)
+                            .frame(minHeight: 64)
                             .padding(12)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
@@ -123,10 +135,14 @@ struct BreakTransitionView: View {
                                 recap: recap,
                                 breakMinutes: selectedBreakMinutes,
                                 calendarTitle: calendarTitle.trimmingCharacters(in: .whitespacesAndNewlines),
-                                intentionAchieved: intentionAchieved
+                                intentionAchieved: intentionAchieved,
+                                interruptionReason: interruptionReason
                             )
                         } label: {
-                            Label("Start Break", systemImage: "play.fill")
+                            Label(
+                                selectedBreakMinutes == 0 ? "Done for Now" : "Start Break",
+                                systemImage: selectedBreakMinutes == 0 ? "checkmark" : "play.fill"
+                            )
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
@@ -148,9 +164,10 @@ struct BreakTransitionView: View {
 
                     Spacer(minLength: 0)
                 }
-                .padding(.vertical, 28)
+                .padding(.vertical, 20)
                 .frame(minHeight: proxy.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
             }
             .containerRelativeFrame(.horizontal) { width, _ in
                 width * 0.88
@@ -202,6 +219,50 @@ struct BreakTransitionView: View {
         }
     }
 
+    private var interruptionSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("What pulled you away?", systemImage: "bolt.horizontal")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 96), spacing: 8)],
+                alignment: .leading,
+                spacing: 8
+            ) {
+                ForEach(interruptionOptions, id: \.self) { option in
+                    let selected = interruptionChoice == option
+                    Button {
+                        interruptionChoice = selected ? nil : option
+                    } label: {
+                        Text(option)
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule().fill(selected ? Color.pomoMint : .white.opacity(0.12))
+                            )
+                            .foregroundStyle(selected ? Color.black : .white)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            TextField("", text: $interruptionNote, prompt: Text("Add a note (optional)").foregroundStyle(.white.opacity(0.35)))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                        )
+                )
+                .foregroundStyle(.white)
+        }
+    }
+
     private var calendarTitleSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Calendar Event Title", systemImage: "calendar.badge.plus")
@@ -224,6 +285,16 @@ struct BreakTransitionView: View {
     }
 
     // MARK: - Helpers
+
+    /// The chosen quick-tap reason plus any note, e.g. "Meeting — client call".
+    /// Empty when the session wasn't ended early or nothing was entered.
+    private var interruptionReason: String {
+        guard vm.endedEarly else { return "" }
+        let note = interruptionNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [interruptionChoice, note.isEmpty ? nil : note]
+            .compactMap { $0 }
+            .joined(separator: " — ")
+    }
 
     private var defaultCalendarTitle: String {
         "Pomodoro Focus Session \(vm.sessionCount)"

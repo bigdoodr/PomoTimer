@@ -9,7 +9,11 @@ import Foundation
 /// updates / ends the activity) and the Live Activity widget extension (which
 /// renders it). After creating the widget extension in Xcode, add this file to
 /// the extension's Target Membership.
-struct PomodoroActivityAttributes: ActivityAttributes {
+///
+/// Marked `nonisolated` so the ActivityAttributes conformance isn't inferred as
+/// main-actor-isolated by the project's default isolation; ActivityKit uses it
+/// from nonisolated async contexts (`Activity.update` / `end`).
+nonisolated struct PomodoroActivityAttributes: ActivityAttributes {
 
     /// The part of the activity that changes over time.
     public struct ContentState: Codable, Hashable {
