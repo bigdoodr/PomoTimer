@@ -17,6 +17,8 @@ struct BreakTransitionView: View {
     @State private var calendarTitle: String = ""
     @State private var interruptionChoice: String? = nil
     @State private var interruptionNote: String = ""
+    @State private var nextStep: String = ""
+    @State private var editingCalendarTitle: Bool = false
     @FocusState private var recapFocused: Bool
 
     /// Quick-tap answers to "What pulled you away?" (shown only when the
@@ -102,6 +104,9 @@ struct BreakTransitionView: View {
                             }
                     }
 
+                    // Where I left off / next step (optional)
+                    nextStepSection
+
                     // Calendar event title
                     calendarTitleSection
 
@@ -136,7 +141,8 @@ struct BreakTransitionView: View {
                                 breakMinutes: selectedBreakMinutes,
                                 calendarTitle: calendarTitle.trimmingCharacters(in: .whitespacesAndNewlines),
                                 intentionAchieved: intentionAchieved,
-                                interruptionReason: interruptionReason
+                                interruptionReason: interruptionReason,
+                                nextStep: nextStep.trimmingCharacters(in: .whitespacesAndNewlines)
                             )
                         } label: {
                             Label(
@@ -248,7 +254,33 @@ struct BreakTransitionView: View {
                 }
             }
 
-            TextField("", text: $interruptionNote, prompt: Text("Add a note (optional)").foregroundStyle(.white.opacity(0.35)))
+            // The note only appears once a reason is chosen, to save space.
+            if interruptionChoice != nil {
+                TextField("", text: $interruptionNote, prompt: Text("Add a note (optional)").foregroundStyle(.white.opacity(0.35)))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(.white.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                            )
+                    )
+                    .foregroundStyle(.white)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: interruptionChoice)
+    }
+
+    private var nextStepSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Where I left off / next step", systemImage: "arrow.turn.down.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.7))
+
+            TextField("", text: $nextStep, prompt: Text("Optional — one line").foregroundStyle(.white.opacity(0.35)))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(
@@ -265,23 +297,42 @@ struct BreakTransitionView: View {
 
     private var calendarTitleSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Calendar Event Title", systemImage: "calendar.badge.plus")
+            // Collapsed by default: most people keep the suggested title.
+            Button {
+                editingCalendarTitle.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar.badge.plus")
+                    Text("Calendar title: \(calendarTitle)")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                    Image(systemName: editingCalendarTitle ? "chevron.up" : "pencil")
+                        .font(.caption)
+                }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.7))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
-            TextField("", text: $calendarTitle)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.white.opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-                        )
-                )
-                .foregroundStyle(.white)
+            if editingCalendarTitle {
+                TextField("", text: $calendarTitle)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(.white.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                            )
+                    )
+                    .foregroundStyle(.white)
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: editingCalendarTitle)
     }
 
     // MARK: - Helpers
@@ -289,7 +340,8 @@ struct BreakTransitionView: View {
     /// The chosen quick-tap reason plus any note, e.g. "Meeting — client call".
     /// Empty when the session wasn't ended early or nothing was entered.
     private var interruptionReason: String {
-        guard vm.endedEarly else { return "" }
+        // The note field is hidden until a chip is chosen, so ignore a stale note.
+        guard vm.endedEarly, interruptionChoice != nil else { return "" }
         let note = interruptionNote.trimmingCharacters(in: .whitespacesAndNewlines)
         return [interruptionChoice, note.isEmpty ? nil : note]
             .compactMap { $0 }

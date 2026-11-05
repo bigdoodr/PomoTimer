@@ -33,6 +33,10 @@ struct PomodoroSession: Codable, Identifiable {
     var endedEarly: Bool = false
     var interruptionReason: String = ""
 
+    // Field added in v5 — a one-line "where I left off / next step" note.
+    // Defaults to "" so older JSON loads unchanged.
+    var nextStep: String = ""
+
     // MARK: - CodingKeys mapping to the legacy zsh JSON field names
     enum CodingKeys: String, CodingKey {
         case id
@@ -51,6 +55,7 @@ struct PomodoroSession: Codable, Identifiable {
         case intentionAchieved = "intention_achieved"
         case endedEarly      = "ended_early"
         case interruptionReason = "interruption_reason"
+        case nextStep        = "next_step"
     }
 
     // MARK: - Computed helpers
@@ -101,6 +106,7 @@ extension PomodoroSession {
         intentionAchieved       = (try? c.decode(Bool.self, forKey: .intentionAchieved)) ?? true
         endedEarly              = (try? c.decode(Bool.self, forKey: .endedEarly)) ?? false
         interruptionReason      = (try? c.decode(String.self, forKey: .interruptionReason)) ?? ""
+        nextStep                = (try? c.decode(String.self, forKey: .nextStep)) ?? ""
     }
 }
 
@@ -122,7 +128,8 @@ extension PomodoroSession {
         intentionAchieved: Bool = true,
         calendarTitle: String = "",
         endedEarly: Bool = false,
-        interruptionReason: String = ""
+        interruptionReason: String = "",
+        nextStep: String = ""
     ) {
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"
@@ -144,7 +151,8 @@ extension PomodoroSession {
             calendarTitle: calendarTitle,
             intentionAchieved: intentionAchieved,
             endedEarly: endedEarly,
-            interruptionReason: interruptionReason
+            interruptionReason: interruptionReason,
+            nextStep: nextStep
         )
     }
 }

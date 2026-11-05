@@ -54,6 +54,8 @@ final class MacWindowManager {
     private let miniSize = NSSize(width: 320, height: 124)
     /// Roomy, centered size for the recap / break-transition screen.
     private let recapSize = NSSize(width: 480, height: 720)
+    /// Upper bound for the recap window height on large displays.
+    private let maxRecapHeight: CGFloat = 900
     /// Size for the end-of-day summary screen.
     private let summarySize = NSSize(width: 480, height: 660)
 
@@ -81,7 +83,11 @@ final class MacWindowManager {
     /// is fully visible — even if the user had dragged the window mostly
     /// off-screen or minimized it to the dock while the timer was running.
     func growForRecap() {
-        centerWindow(at: recapSize)
+        // Use most of the screen's height (up to a sensible maximum) so the
+        // recap form rarely needs to scroll; centerWindow clamps to the screen.
+        let visibleHeight = (mainWindow?.screen ?? NSScreen.main)?.visibleFrame.height ?? recapSize.height
+        let height = min(maxRecapHeight, max(recapSize.height, visibleHeight * 0.9))
+        centerWindow(at: NSSize(width: recapSize.width, height: height))
     }
 
     /// Resize and center the window for the end-of-day summary screen.

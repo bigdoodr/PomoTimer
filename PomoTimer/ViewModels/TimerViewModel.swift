@@ -139,7 +139,8 @@ final class TimerViewModel: ObservableObject {
     func startBreak(
         recap: String, breakMinutes: Int,
         calendarTitle: String = "", intentionAchieved: Bool = true,
-        interruptionReason: String = ""
+        interruptionReason: String = "",
+        nextStep: String = ""
     ) {
         self.breakMinutes = breakMinutes
 
@@ -155,7 +156,8 @@ final class TimerViewModel: ObservableObject {
                 intention: currentIntention,
                 intentionAchieved: intentionAchieved,
                 calendarTitle: calendarTitle,
-                interruptionReason: interruptionReason
+                interruptionReason: interruptionReason,
+                nextStep: nextStep
             )
             totalFocusMinutesToday += duration
             completedSessions.append(session)
@@ -319,7 +321,8 @@ final class TimerViewModel: ObservableObject {
         intention: String = "",
         intentionAchieved: Bool = true,
         calendarTitle: String = "",
-        interruptionReason: String = ""
+        interruptionReason: String = "",
+        nextStep: String = ""
     ) -> PomodoroSession {
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"
@@ -339,7 +342,10 @@ final class TimerViewModel: ObservableObject {
             endEpoch: end.timeIntervalSince1970,
             intention: intention,
             calendarTitle: calendarTitle,
-            intentionAchieved: intentionAchieved
+            intentionAchieved: intentionAchieved,
+            endedEarly: endedEarly,
+            interruptionReason: endedEarly ? interruptionReason : "",
+            nextStep: nextStep
         )
     }
 
