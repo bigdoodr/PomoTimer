@@ -1,6 +1,34 @@
 import Foundation
 import Combine
 
+/// What the Resume card shows: the most recent session's next step and, if it
+/// wasn't achieved, its intention. Also written to `resume.json` so the card
+/// survives an archive/rollover of `recaps.json`.
+struct ResumeItem: Codable, Equatable {
+    var sessionEpoch: TimeInterval
+    var nextStep: String
+    var unfinishedIntention: String
+
+    enum CodingKeys: String, CodingKey {
+        case sessionEpoch        = "session_epoch"
+        case nextStep            = "next_step"
+        case unfinishedIntention = "unfinished_intention"
+    }
+
+    init(session: PomodoroSession) {
+        sessionEpoch = session.startEpoch
+        nextStep = session.nextStep
+        unfinishedIntention = (!session.intention.isEmpty && !session.intentionAchieved)
+            ? session.intention : ""
+    }
+
+    /// Stable identifier used to remember that the user dismissed this card.
+    var id: String { String(sessionEpoch) }
+    var isEmpty: Bool { nextStep.isEmpty && unfinishedIntention.isEmpty }
+    /// Text for the "Pick up here" button: the next step, else the unfinished intention.
+    var pickUpText: String { nextStep.isEmpty ? unfinishedIntention : nextStep }
+}
+
 /// Persists session data as a JSON array of PomodoroSession objects.
 ///
 /// The user must choose a destination folder in Settings before any session
@@ -25,6 +53,18 @@ final class SessionStore: ObservableObject {
     // MARK: - Published
     @Published private(set) var sessions: [PomodoroSession] = []
     @Published private(set) var hasConfiguredStorage: Bool = false
+    /// Resume state read from `resume.json`; used when `sessions` is empty
+    /// (e.g. right after an archive/rollover).
+    @Published private(set) var persistedResume: ResumeItem?
+
+    /// What to show on the Resume card, or nil when there's nothing to resume.
+    /// Built from the most recent session, falling back to `resume.json`.
+    var resumeItem: ResumeItem? {
+        let latest = sessions.max { $0.startEpoch < $1.startEpoch }
+        guard let item = latest.map(ResumeItem.init(session:)) ?? persistedResume,
+              !item.isEmpty else { return nil }
+        return item
+    }
 
     // MARK: - Settings keys (display path + bookmark data)
 
@@ -68,6 +108,8 @@ final class SessionStore: ObservableObject {
         recapsURL = resolveStorageURL()
         guard let url = recapsURL else { return }
 
+        loadResume()
+
         do {
             let data = try Data(contentsOf: url)
             let decoded = try JSONDecoder().decode([PomodoroSession].self, from: data)
@@ -89,6 +131,7 @@ final class SessionStore: ObservableObject {
         await performAutoRolloverIfNeeded()
         sessions.append(session)
         await persist()
+        persistResume(for: session)
     }
 
     func deleteSession(id: UUID) async {
@@ -298,6 +341,33 @@ final class SessionStore: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: pathKey)
         defaults.removeObject(forKey: bookmarkKey)
+    }
+
+    // MARK: - Resume state (resume.json, next to recaps.json)
+
+    private var resumeURL: URL? {
+        recapsURL?.deletingLastPathComponent().appendingPathComponent("resume.json")
+    }
+
+    private func loadResume() {
+        guard let url = resumeURL,
+              let data = try? Data(contentsOf: url) else { return }
+        persistedResume = try? JSONDecoder().decode(ResumeItem.self, from: data)
+    }
+
+    /// Records the newest session's resume info so it outlives an archive
+    /// of recaps.json.
+    private func persistResume(for session: PomodoroSession) {
+        let item = ResumeItem(session: session)
+        persistedResume = item
+        guard let url = resumeURL else { return }
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(item).write(to: url, options: .atomicWrite)
+        } catch {
+            print("[SessionStore] Resume save failed: \(error)")
+        }
     }
 
     private func persist() async {

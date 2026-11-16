@@ -256,7 +256,8 @@ struct BreakTransitionView: View {
 
             // The note only appears once a reason is chosen, to save space.
             if interruptionChoice != nil {
-                TextField("", text: $interruptionNote, prompt: Text("Add a note (optional)").foregroundStyle(.white.opacity(0.35)))
+                TextField("", text: $interruptionNote, prompt: Text("Add a note (optional)").foregroundStyle(.white.opacity(0.5)))
+                    .textFieldStyle(.plain)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(
@@ -280,7 +281,8 @@ struct BreakTransitionView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.7))
 
-            TextField("", text: $nextStep, prompt: Text("Optional — one line").foregroundStyle(.white.opacity(0.35)))
+            TextField("", text: $nextStep, prompt: Text("Optional — one line").foregroundStyle(.white.opacity(0.5)))
+                .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(
@@ -318,6 +320,7 @@ struct BreakTransitionView: View {
 
             if editingCalendarTitle {
                 TextField("", text: $calendarTitle)
+                    .textFieldStyle(.plain)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(

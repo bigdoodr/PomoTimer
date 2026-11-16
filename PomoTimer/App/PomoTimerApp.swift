@@ -30,7 +30,7 @@ struct PomoTimerApp: App {
         }
 #if os(macOS)
         // Compact default size; grows to full screen during blur phases automatically
-        .defaultSize(width: 480, height: 540)
+        .defaultSize(width: 480, height: 700)
         .windowResizability(.contentMinSize)
 #endif
     }

@@ -13,6 +13,8 @@ struct SetupView: View {
     @State private var showHistory = false
     @State private var showSettings = false
     @State private var showFolderPicker = false
+    /// ID of the Resume card the user dismissed, so it stays hidden across launches.
+    @AppStorage("dismissedResumeID") private var dismissedResumeID: String = ""
     @AppStorage("hasSeenSettingsTip") private var hasSeenSettingsTip = false
     @State private var showSettingsTip = false
 
@@ -29,7 +31,7 @@ struct SetupView: View {
     var body: some View {
         GeometryReader { proxy in
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 22) {
                 Spacer(minLength: 0)
 
                 // Header
@@ -86,6 +88,11 @@ struct SetupView: View {
                 }
                 .padding(.horizontal, 4)
 
+                // Resume card — where the last session left off
+                if let item = store.resumeItem, item.id != dismissedResumeID {
+                    resumeCard(item)
+                }
+
                 // Intention (optional)
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Intention", systemImage: "target")
@@ -137,7 +144,7 @@ struct SetupView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 28)
+            .padding(.vertical, 20)
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
             .frame(minHeight: proxy.size.height)
@@ -164,12 +171,71 @@ struct SetupView: View {
             Task { await store.load() }
         }
         .onAppear {
+            #if os(macOS)
+            // Defer a tick so the window exists on cold launch.
+            Task { @MainActor in MacWindowManager.shared.ensureSetupSize() }
+            #endif
             if !hasSeenSettingsTip {
                 withAnimation(.easeOut(duration: 0.4).delay(0.6)) {
                     showSettingsTip = true
                 }
             }
         }
+    }
+
+    // MARK: - Resume card
+
+    private func resumeCard(_ item: ResumeItem) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Resume", systemImage: "arrow.uturn.forward")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    withAnimation { dismissedResumeID = item.id }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss resume card")
+            }
+
+            if !item.nextStep.isEmpty {
+                resumeLine(title: "Where you left off", text: item.nextStep)
+            }
+            if !item.unfinishedIntention.isEmpty {
+                resumeLine(title: "Unfinished intention", text: item.unfinishedIntention)
+            }
+
+            Button {
+                intention = item.pickUpText
+            } label: {
+                Label("Pick up here", systemImage: "arrow.down.to.line")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.bordered)
+            .tint(Color.pomoIndigo)
+        }
+        .padding(14)
+        .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 4)
+    }
+
+    private func resumeLine(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.subheadline.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - First-launch settings tip

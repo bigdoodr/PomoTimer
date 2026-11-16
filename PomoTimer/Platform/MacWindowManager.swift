@@ -54,6 +54,9 @@ final class MacWindowManager {
     private let miniSize = NSSize(width: 320, height: 124)
     /// Roomy, centered size for the recap / break-transition screen.
     private let recapSize = NSSize(width: 480, height: 720)
+    /// Minimum height for the Setup screen so the Start button stays visible
+    /// even with the Resume card showing.
+    private let setupMinHeight: CGFloat = 700
     /// Upper bound for the recap window height on large displays.
     private let maxRecapHeight: CGFloat = 900
     /// Size for the end-of-day summary screen.
@@ -93,6 +96,26 @@ final class MacWindowManager {
     /// Resize and center the window for the end-of-day summary screen.
     func growForSummary() {
         centerWindow(at: summarySize)
+    }
+
+    /// Makes sure the Setup screen (which can show the Resume card) is tall
+    /// enough to show the Start button without scrolling. Only ever grows the
+    /// window, keeps its top edge in place, and stays within the screen.
+    func ensureSetupSize() {
+        guard let window = mainWindow, !window.isMiniaturized else { return }
+        var frame = window.frame
+        guard frame.height < setupMinHeight else { return }
+
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame
+        let newHeight = min(setupMinHeight, visible?.height ?? setupMinHeight)
+        let topEdge = frame.maxY
+        frame.size.height = newHeight
+        frame.origin.y = topEdge - newHeight
+        // If growing downward pushes it off the bottom of the screen, slide it up.
+        if let visible, frame.minY < visible.minY {
+            frame.origin.y = visible.minY
+        }
+        window.setFrame(frame, display: true, animate: true)
     }
 
     // MARK: - Private
