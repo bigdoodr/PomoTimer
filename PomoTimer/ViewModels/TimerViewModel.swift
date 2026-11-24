@@ -48,6 +48,17 @@ final class TimerViewModel: ObservableObject {
     private var timerCancellable: AnyCancellable?
     /// The Date at which the current timer should reach zero
     private var timerTarget: Date?
+    /// Action to run when the current timer reaches zero.
+    private var timerExpiry: (() -> Void)?
+    /// The target of the timer that most recently expired. Lets the expiry
+    /// handler record the planned end time even when the tick arrives late
+    /// (e.g. the app was suspended or throttled past the deadline).
+    private var expiredTimerTarget: Date?
+    #if os(macOS)
+    /// Held while a countdown runs so App Nap can't throttle the 1-second
+    /// timer when the window is hidden or on another desktop.
+    private var activityToken: NSObjectProtocol?
+    #endif
 
     // MARK: - Init
 
@@ -91,7 +102,48 @@ final class TimerViewModel: ObservableObject {
             start: Date(),
             end: Date().addingTimeInterval(TimeInterval(focusMinutes * 60))
         )
+        savePendingSession(end: Date().addingTimeInterval(TimeInterval(focusMinutes * 60)))
         phase = .focus
+    }
+
+    // MARK: - Pending session (recover a recap after the app was killed)
+
+    private func savePendingSession(end: Date) {
+        #if os(iOS)
+        PendingSession(
+            startEpoch: (sessionStartDate ?? Date()).timeIntervalSince1970,
+            endEpoch: end.timeIntervalSince1970,
+            sessionNumber: sessionCount,
+            intention: currentIntention
+        ).save()
+        #endif
+    }
+
+    /// iOS cold launch: if a focus session ended while the app wasn't running
+    /// and its recap was never saved, reopen on the recap screen.
+    func restorePendingSessionIfNeeded() {
+        #if os(iOS)
+        guard phase == .setup, let pending = PendingSession.load() else { return }
+        let end = Date(timeIntervalSince1970: pending.endEpoch)
+        let age = Date().timeIntervalSince(end)
+        // Not finished yet (nothing to recover), or too old to be useful.
+        guard age >= 0 else { return }
+        guard age <= PendingSession.maxAge,
+              !sessionStore.sessions.contains(where: {
+                  abs($0.startEpoch - pending.startEpoch) < 1
+              }) else {
+            PendingSession.clear()
+            return
+        }
+        sessionStartDate = Date(timeIntervalSince1970: pending.startEpoch)
+        sessionEndDate = end
+        sessionCount = pending.sessionNumber
+        currentIntention = pending.intention
+        isContinuingSession = false
+        endedEarly = false
+        phase = .breakTransition
+        showBlur()
+        #endif
     }
 
     // MARK: - Focus phase
@@ -103,6 +155,7 @@ final class TimerViewModel: ObservableObject {
         LiveActivityManager.shared.end()
         sessionEndDate = Date()
         endedEarly = true
+        savePendingSession(end: sessionEndDate ?? Date())
         // Set phase before showBlur so the SwiftUI update is enqueued before
         // any AppKit window management runs.
         phase = .breakTransition
@@ -115,8 +168,11 @@ final class TimerViewModel: ObservableObject {
         // also be logged from the notification (which would double-record it).
         notificationService.cancelAll()
         LiveActivityManager.shared.end()
-        sessionEndDate = Date()
+        // Use the planned end, not "now": a late tick must not inflate the
+        // recorded duration.
+        sessionEndDate = expiredTimerTarget ?? Date()
         endedEarly = false
+        savePendingSession(end: sessionEndDate ?? Date())
         // Set phase before showBlur so the SwiftUI update is enqueued before
         // any AppKit window management runs.
         phase = .breakTransition
@@ -144,8 +200,13 @@ final class TimerViewModel: ObservableObject {
     ) {
         self.breakMinutes = breakMinutes
 
-        // Persist the completed session
-        if let start = sessionStartDate, let end = sessionEndDate {
+        // Persist the completed session — unless a notification reply already
+        // recorded it (possible when the recap was restored at launch).
+        PendingSession.clear()
+        if let start = sessionStartDate, let end = sessionEndDate,
+           !sessionStore.sessions.contains(where: {
+               abs($0.startEpoch - start.timeIntervalSince1970) < 1
+           }) {
             let duration = max(1, Int(end.timeIntervalSince(start) / 60))
             let session = buildSession(
                 start: start,
@@ -246,6 +307,7 @@ final class TimerViewModel: ObservableObject {
 
     func resetForNewDay() {
         cancelTimer()
+        PendingSession.clear()
         LiveActivityManager.shared.end()
         sessionCount = 0
         totalFocusMinutesToday = 0
@@ -296,23 +358,49 @@ final class TimerViewModel: ObservableObject {
         cancelTimer()
         secondsRemaining = seconds
         timerTarget = Date().addingTimeInterval(TimeInterval(seconds))
+        timerExpiry = onExpiry
+        #if os(macOS)
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "PomoLedger countdown"
+        )
+        #endif
         timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
-            .sink { [weak self] _ in
-                guard let self, let target = self.timerTarget else { return }
-                let remaining = max(0, Int(target.timeIntervalSinceNow.rounded()))
-                self.secondsRemaining = remaining
-                if remaining == 0 {
-                    self.cancelTimer()
-                    onExpiry()
-                }
-            }
+            .sink { [weak self] _ in self?.tick() }
+    }
+
+    /// Recomputes the countdown from `timerTarget` and fires the expiry
+    /// action once it reaches zero.
+    private func tick() {
+        guard let target = timerTarget else { return }
+        let remaining = max(0, Int(target.timeIntervalSinceNow.rounded()))
+        secondsRemaining = remaining
+        if remaining == 0 {
+            let expiry = timerExpiry
+            expiredTimerTarget = target
+            cancelTimer()
+            expiry?()
+        }
+    }
+
+    /// Called when the app becomes active. If the deadline passed while ticks
+    /// were suspended or throttled, run the expiry now instead of waiting.
+    func catchUpTimerOnActivation() {
+        tick()
     }
 
     private func cancelTimer() {
         timerCancellable?.cancel()
         timerCancellable = nil
         timerTarget = nil
+        timerExpiry = nil
+        #if os(macOS)
+        if let activityToken {
+            ProcessInfo.processInfo.endActivity(activityToken)
+            self.activityToken = nil
+        }
+        #endif
     }
 
     private func buildSession(

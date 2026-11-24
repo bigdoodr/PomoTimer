@@ -50,7 +50,9 @@ struct ContentView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .pomoAppForeground)
         ) { _ in
-            // Timer drives itself via Date arithmetic — nothing needed here.
+            // The countdown is Date-based, but ticks can be suspended or
+            // throttled while hidden — fire any expiry that was missed.
+            vm.catchUpTimerOnActivation()
         }
     }
 }

@@ -4,8 +4,8 @@ import UserNotifications
 ///
 /// On iOS the app process is suspended when the user switches away, so the only
 /// way to signal "your timer is done" is a UNUserNotificationCenter local
-/// notification. On macOS the app stays alive, but we still schedule
-/// notifications for consistency (the user may minimize the app).
+/// notification. On macOS the app stays alive and the screen blur is the
+/// attention signal, so nothing is scheduled there (see `schedule`).
 ///
 /// The focus-complete notification is *actionable* (Messages-style): expanding
 /// it reveals an inline recap text field plus break-length buttons. The reply
@@ -126,6 +126,9 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
                 sessionNumber: sessionNumber,
                 startEpoch: startEpoch
             )
+            PendingSession.updateEnd(
+                to: Date().addingTimeInterval(5 * 60).timeIntervalSince1970
+            )
         default:
             break   // Plain tap opens the app; the in-app flow takes over.
         }
@@ -163,6 +166,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             session.calendarEventIdentifier = eventID
         }
         await sessionStore.append(session)
+        // Recorded — nothing left to restore at the next launch.
+        PendingSession.clear()
 
         // Continue the Messages-style loop: notify when the break finishes.
         scheduleBreakComplete(in: TimeInterval(breakMinutes * 60))
@@ -237,6 +242,10 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         categoryIdentifier: String? = nil,
         userInfo: [String: Any] = [:]
     ) {
+        #if os(macOS)
+        // The recap sheet and blur are the Mac alert; a banner would bypass them.
+        return
+        #else
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -259,5 +268,6 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         center.add(request) { error in
             if let error { print("[Notifications] Schedule failed: \(error)") }
         }
+        #endif
     }
 }

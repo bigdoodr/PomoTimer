@@ -15,6 +15,9 @@ struct PomoTimerApp: App {
                 .environmentObject(vm.calendarService)
                 .task {
                     await vm.sessionStore.load()
+                    // iOS: reopen on the recap if a session ended while the
+                    // app wasn't running.
+                    vm.restorePendingSessionIfNeeded()
                     await vm.notificationService.requestAuthorization()
                     // Cold launch: clear any Live Activity left over from a
                     // session that finished while the app wasn't running.
