@@ -60,7 +60,7 @@ final class MacWindowManager {
     /// Upper bound for the recap window height on large displays.
     private let maxRecapHeight: CGFloat = 900
     /// Size for the end-of-day summary screen.
-    private let summarySize = NSSize(width: 480, height: 660)
+    private let summarySize = NSSize(width: 480, height: 720)
 
     private let cornerMargin: CGFloat = 16
 

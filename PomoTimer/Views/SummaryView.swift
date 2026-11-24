@@ -67,6 +67,9 @@ struct SummaryView: View {
                 .padding(12)
                 .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 14))
 
+                // Commitments ("I'm tasked to…")
+                CommitmentQuickAddView(store: store)
+
                 // Export ICS files for Outlook
                 Button {
                     exportICSFiles()

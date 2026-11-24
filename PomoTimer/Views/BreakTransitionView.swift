@@ -107,6 +107,9 @@ struct BreakTransitionView: View {
                     // Where I left off / next step (optional)
                     nextStepSection
 
+                    // Commitments ("I'm tasked to…")
+                    CommitmentQuickAddView(store: vm.sessionStore, onDark: true)
+
                     // Calendar event title
                     calendarTitleSection
 

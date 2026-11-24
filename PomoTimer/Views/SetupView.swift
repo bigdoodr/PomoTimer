@@ -89,8 +89,11 @@ struct SetupView: View {
                 .padding(.horizontal, 4)
 
                 // Resume card — where the last session left off
-                if let item = store.resumeItem, item.id != dismissedResumeID {
-                    resumeCard(item)
+                // Shows the last session's resume lines (until dismissed) plus
+                // any open commitments (until checked off).
+                let resume = store.resumeItem.flatMap { $0.id == dismissedResumeID ? nil : $0 }
+                if resume != nil || !store.openCommitments.isEmpty {
+                    resumeCard(resume, commitments: store.openCommitments)
                 }
 
                 // Intention (optional)
@@ -185,45 +188,94 @@ struct SetupView: View {
 
     // MARK: - Resume card
 
-    private func resumeCard(_ item: ResumeItem) -> some View {
+    /// `item` is the last session's resume info (nil once dismissed); the X
+    /// dismisses only that part. `commitments` are open items that stay until
+    /// the user checks them off, so a dismissed card never hides a promise.
+    private func resumeCard(_ item: ResumeItem?, commitments: [Commitment]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Label("Resume", systemImage: "arrow.uturn.forward")
                     .font(.headline)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button {
-                    withAnimation { dismissedResumeID = item.id }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                if let item {
+                    Button {
+                        withAnimation { dismissedResumeID = item.id }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss where you left off")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss resume card")
             }
 
-            if !item.nextStep.isEmpty {
-                resumeLine(title: "Where you left off", text: item.nextStep)
-            }
-            if !item.unfinishedIntention.isEmpty {
-                resumeLine(title: "Unfinished intention", text: item.unfinishedIntention)
+            if let item {
+                if !item.nextStep.isEmpty {
+                    resumeLine(title: "Where you left off", text: item.nextStep)
+                }
+                if !item.unfinishedIntention.isEmpty {
+                    resumeLine(title: "Unfinished intention", text: item.unfinishedIntention)
+                }
             }
 
-            Button {
-                intention = item.pickUpText
-            } label: {
-                Label("Pick up here", systemImage: "arrow.down.to.line")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+            if !commitments.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("You\u{2019}re tasked to")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(commitments) { commitment in
+                        commitmentRow(commitment)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.bordered)
-            .tint(Color.pomoIndigo)
+
+            if let item, !item.pickUpText.isEmpty {
+                Button {
+                    intention = item.pickUpText
+                } label: {
+                    Label("Pick up here", systemImage: "arrow.down.to.line")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color.pomoIndigo)
+            }
         }
         .padding(14)
         .background(Color.pomoSurface, in: RoundedRectangle(cornerRadius: 14))
         .padding(.horizontal, 4)
+        .animation(.easeInOut(duration: 0.2), value: commitments)
+    }
+
+    /// One open commitment with a checkbox; tapping it checks the item off.
+    private func commitmentRow(_ commitment: Commitment) -> some View {
+        Button {
+            store.completeCommitment(id: commitment.id)
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "circle")
+                    .foregroundStyle(Color.pomoIndigo)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(commitment.text)
+                        .font(.subheadline.weight(.medium))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !commitment.person.isEmpty {
+                        Text(commitment.person)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(commitment.text). Tap to mark done.")
     }
 
     private func resumeLine(title: String, text: String) -> some View {

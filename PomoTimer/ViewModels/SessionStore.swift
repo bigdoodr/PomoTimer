@@ -29,6 +29,42 @@ struct ResumeItem: Codable, Equatable {
     var pickUpText: String { nextStep.isEmpty ? unfinishedIntention : nextStep }
 }
 
+/// Something the user promised to do ("I'm tasked to…"). Stored in
+/// `commitments.json` next to `recaps.json`, separate from the session log so
+/// archiving the recaps never touches open items.
+struct Commitment: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var text: String
+    /// Optional person or context the commitment is for.
+    var person: String = ""
+    var createdAt: Date
+    var completedAt: Date?
+
+    var isOpen: Bool { completedAt == nil }
+
+    enum CodingKeys: String, CodingKey {
+        case id, text, person
+        case createdAt   = "created_at"
+        case completedAt = "completed_at"
+    }
+
+    init(text: String, person: String = "", createdAt: Date = Date()) {
+        self.text = text
+        self.person = person
+        self.createdAt = createdAt
+    }
+
+    /// Missing keys fall back to safe defaults so the file stays forward-compatible.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id          = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        text        = try c.decode(String.self, forKey: .text)
+        person      = (try? c.decode(String.self, forKey: .person)) ?? ""
+        createdAt   = (try? c.decode(Date.self, forKey: .createdAt)) ?? Date()
+        completedAt = try? c.decode(Date.self, forKey: .completedAt)
+    }
+}
+
 /// Persists session data as a JSON array of PomodoroSession objects.
 ///
 /// The user must choose a destination folder in Settings before any session
@@ -56,6 +92,14 @@ final class SessionStore: ObservableObject {
     /// Resume state read from `resume.json`; used when `sessions` is empty
     /// (e.g. right after an archive/rollover).
     @Published private(set) var persistedResume: ResumeItem?
+    /// All commitments, open and completed, oldest first.
+    @Published private(set) var commitments: [Commitment] = []
+
+    /// Commitments still waiting to be checked off; they carry forward across
+    /// days and across archives of `recaps.json`.
+    var openCommitments: [Commitment] {
+        commitments.filter(\.isOpen).sorted { $0.createdAt < $1.createdAt }
+    }
 
     /// What to show on the Resume card, or nil when there's nothing to resume.
     /// Built from the most recent session, falling back to `resume.json`.
@@ -109,6 +153,7 @@ final class SessionStore: ObservableObject {
         guard let url = recapsURL else { return }
 
         loadResume()
+        loadCommitments()
 
         do {
             let data = try Data(contentsOf: url)
@@ -341,6 +386,56 @@ final class SessionStore: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: pathKey)
         defaults.removeObject(forKey: bookmarkKey)
+    }
+
+    // MARK: - Commitments (commitments.json, next to recaps.json)
+    //
+    // Deliberately a separate file: archiveAndStartNew() / auto-rollover only
+    // move recaps.json, so open commitments are never wiped by an archive.
+
+    private var commitmentsURL: URL? {
+        recapsURL?.deletingLastPathComponent().appendingPathComponent("commitments.json")
+    }
+
+    private func loadCommitments() {
+        guard let url = commitmentsURL,
+              let data = try? Data(contentsOf: url) else {
+            commitments = []   // no file in this folder yet (or the folder changed)
+            return
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        commitments = (try? decoder.decode([Commitment].self, from: data)) ?? []
+    }
+
+    /// Adds an open commitment. Ignored when `text` is blank.
+    func addCommitment(text: String, person: String = "") {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        commitments.append(Commitment(
+            text: trimmed,
+            person: person.trimmingCharacters(in: .whitespacesAndNewlines)
+        ))
+        persistCommitments()
+    }
+
+    /// Checks a commitment off. Completed items stay in the file as a record.
+    func completeCommitment(id: UUID) {
+        guard let index = commitments.firstIndex(where: { $0.id == id }) else { return }
+        commitments[index].completedAt = Date()
+        persistCommitments()
+    }
+
+    private func persistCommitments() {
+        guard let url = commitmentsURL else { return }
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            try encoder.encode(commitments).write(to: url, options: .atomicWrite)
+        } catch {
+            print("[SessionStore] Commitments save failed: \(error)")
+        }
     }
 
     // MARK: - Resume state (resume.json, next to recaps.json)
